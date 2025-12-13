@@ -8,12 +8,12 @@ import './Conference.css';
 // For React apps, files in public folder are served from root
 const iconPaths = {
   micOn: '/icons/mic-on.png',
-  micOff: '/icons/mic-off.png',
+  micOff: '/icons/mic-on.png', // Use mic-on for muted state (crossed mic icon)
   videoOn: '/icons/video-on.png',
   videoOff: '/icons/video-off.png',
   screenShare: '/icons/screen-share.png',
-  endCall: '/icons/end-call.png',
-  copyLink: '/icons/copy-link.png',
+  endCall: '/icons/mic-off.png', // mic-off.png actually contains the Decline/End Call icon
+  copyLink: '/icons/end-call.png', // end-call.png actually contains the Link icon
 };
 
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001';
