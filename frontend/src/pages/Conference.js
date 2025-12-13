@@ -8,9 +8,9 @@ import './Conference.css';
 // For React apps, files in public folder are served from root
 const iconPaths = {
   micOn: '/icons/mic-on.png',
-  micOff: '/icons/mic-on.png', // Use mic-on for muted state (crossed mic icon)
+  micOff: '/icons/video-off.png', // video-off.png actually contains the crossed mic icon
   videoOn: '/icons/video-on.png',
-  videoOff: '/icons/video-off.png',
+  videoOff: '/icons/copy-link.png', // copy-link.png actually contains the crossed camera icon
   screenShare: '/icons/screen-share.png',
   endCall: '/icons/mic-off.png', // mic-off.png actually contains the Decline/End Call icon
   copyLink: '/icons/end-call.png', // end-call.png actually contains the Link icon
