@@ -195,6 +195,7 @@ body {
   object-fit: contain;
   display: block;
   flex-shrink: 0; /* Prevent shrinking */
+  pointer-events: none; /* Prevent icon from blocking button clicks */
   /* Remove mix-blend-mode as it may hide icons */
 }
 

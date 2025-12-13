@@ -36,6 +36,7 @@ const IconImg = ({ src, alt, className }) => {
       src={src} 
       alt={alt} 
       className={className}
+      style={{ pointerEvents: 'none' }} // Prevent icon from blocking button clicks
       onError={(e) => {
         console.error(`Failed to load icon: ${src}`);
         setImgError(true);
@@ -606,11 +607,18 @@ function Conference() {
           <button 
             className="meet-action-btn copy-link-btn image-btn" 
             title="Copy link"
+            type="button"
             onClick={(e) => {
-              console.log('Copy button clicked');
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Copy button clicked - handler fired!');
               copyConferenceLink(e);
             }}
-            onMouseDown={(e) => e.preventDefault()}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Copy button mousedown');
+            }}
             style={{ 
               borderRadius: '24px', 
               padding: '0',
@@ -620,7 +628,8 @@ function Conference() {
               border: 'none',
               boxShadow: 'none',
               cursor: 'pointer',
-              zIndex: 100
+              zIndex: 100,
+              position: 'relative'
             }}
           >
             <Icons.Copy />
