@@ -127,7 +127,7 @@ body {
 .meet-bottom-center {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px; /* Increased gap for larger buttons */
 }
 
 /* Base button styles - keep for potential non-image buttons */
@@ -152,10 +152,12 @@ body {
 /* Styles for image-based buttons to override defaults */
 .meet-control-btn.image-btn {
   background-color: transparent;
-  width: 48px; /* Slightly larger for touch targets */
-  height: 48px;
+  width: 64px; /* Bigger size for better visibility */
+  height: 64px;
   padding: 0;
   border-radius: 0; /* Images are already circular */
+  min-width: 64px; /* Ensure equal sizing */
+  min-height: 64px;
 }
 
 .meet-control-btn.image-btn:hover {
@@ -164,10 +166,11 @@ body {
 }
 
 .control-icon {
-  width: 100%;
-  height: 100%;
+  width: 64px; /* Fixed size for all icons */
+  height: 64px; /* Fixed size for all icons */
   object-fit: contain;
   display: block;
+  flex-shrink: 0; /* Prevent shrinking */
 }
 
 /* Active states handled by image swap logic in component */
@@ -201,9 +204,11 @@ body {
 }
 
 .meet-action-btn.image-btn {
-  width: 40px; /* Adjust size for copy link */
-  height: 40px;
+  width: 64px; /* Equal size with control buttons */
+  height: 64px;
   padding: 0;
+  min-width: 64px;
+  min-height: 64px;
 }
 
 /* Sidebar */
