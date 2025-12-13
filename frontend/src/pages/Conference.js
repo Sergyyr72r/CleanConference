@@ -12,17 +12,13 @@ const Icons = {
   MicOff: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02 5.01L7.75 8.78l1.22-1.23.03.01C9 7.55 9 7.55 9 7.56V5c0-1.66-1.34-3-3-3S3 3.34 3 5v.01l.01.02.01.03-.01-.06L3 5c0-1.1.9-2 2-2s2 .9 2 2v2.55l3.58 3.58c.21.6.32 1.25.32 1.93 0 2.76-2.24 5-5 5s-5-2.24-5-5H.82c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c1.37-.2 2.63-.78 3.68-1.58l3.15 3.15 1.41-1.41-5.08-5.07z"/></svg>,
   Video: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M18 10.48V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4.48l4 3.98v-11l-4 3.98zm-2-.79V18H4V6h12v3.69z"/></svg>,
   VideoOff: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M21 6.5l-4 4V6c0-1.1-.9-2-2-2H9.82L21 15.18V6.5zM3.27 2L2 3.27 4.73 6H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-1.27l2.73 2.73L22 19.73 3.27 2zM6 18V8h1.82l10 10H6z"/></svg>,
-  CC: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z"/></svg>,
-  Hand: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M22 14c0 3.31-2.69 6-6 6-1.55 0-2.97-.59-4.06-1.56l.82-1.42c.86.6 1.9.98 3.03.98 2.21 0 4-1.79 4-4 0-1.42-.74-2.66-1.85-3.39l-2.02-1.35V5c0-1.65-1.35-3-3-3s-3 1.35-3 3v7.5c0 .28.22.5.5.5s.5-.22.5-.5V5c0-.55.45-1 1-1s1 .45 1 1v6.5h1.53l2.84 1.89c.75.5 1.24 1.34 1.24 2.3 0 1.1-.9 2-2 2-.44 0-.84-.14-1.17-.38l-1.02 1.76c.61.4 1.34.62 2.12.62 3.31 0 6-2.69 6-6 0-1.33-.44-2.57-1.18-3.58l-1.36.92C21.64 12.18 22 13.04 22 14zM8 12.5v-3c0-.28-.22-.5-.5-.5S7 9.22 7 9.5v3h1zm-2 0v-4c0-.28-.22-.5-.5-.5S5 8.22 5 8.5v4h1zm-2 0v-2c0-.28-.22-.5-.5-.5S2 10.22 2 10.5v2h1z"/></svg>,
   ScreenShare: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.11-.9-2-2-2H4c-1.11 0-2 .89-2 2v10c0 1.1.89 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>,
   ScreenShareActive: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.11-.9-2-2-2H4c-1.11 0-2 .89-2 2v10c0 1.1.89 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6zm9-2h-2v-3l-2.5 2.5L7 2l5 5V4h2v4z"/></svg>,
-  More: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>,
   CallEnd: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>,
   Info: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>,
   People: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>,
   Chat: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>,
-  Activities: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5.5-2.5l7.51-3.22-7.52-3.22 3.22 7.52-3.21-1.08zM12 13c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>,
-  Security: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3 3.1-3 1.71 0 3.1 1.29 3.1 3v2z"/></svg>
+  Copy: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
 };
 
 function Conference() {
@@ -488,25 +484,17 @@ function Conference() {
           <button 
             className={`meet-control-btn ${isMuted ? 'active-red' : ''}`} 
             onClick={toggleMute}
-            title="Turn off microphone"
+            title={isMuted ? "Unmute" : "Mute"}
           >
-            {isMuted ? <Icons.MicOff /> : <Icons.Mic />}
+            {isMuted ? <Icons.Mic /> : <Icons.MicOff />}
           </button>
           
           <button 
             className={`meet-control-btn ${isVideoOff ? 'active-red' : ''}`} 
             onClick={toggleVideo}
-            title="Turn off camera"
+            title={isVideoOff ? "Turn on camera" : "Turn off camera"}
           >
-            {isVideoOff ? <Icons.VideoOff /> : <Icons.Video />}
-          </button>
-
-          <button className="meet-control-btn" title="Turn on captions">
-            <Icons.CC />
-          </button>
-
-          <button className="meet-control-btn" title="Raise hand">
-            <Icons.Hand />
+            {isVideoOff ? <Icons.Video /> : <Icons.VideoOff />}
           </button>
 
           <button 
@@ -515,10 +503,6 @@ function Conference() {
             title="Present now"
           >
             {isScreenSharing ? <Icons.ScreenShareActive /> : <Icons.ScreenShare />}
-          </button>
-
-          <button className="meet-control-btn" title="More options">
-            <Icons.More />
           </button>
 
           <button 
@@ -531,6 +515,24 @@ function Conference() {
         </div>
 
         <div className="meet-bottom-right">
+          <button 
+            className="meet-action-btn copy-link-btn" 
+            title="Copy link"
+            onClick={copyConferenceLink}
+            style={{ 
+              borderRadius: '24px', 
+              padding: '0 16px', 
+              gap: '8px', 
+              background: '#8ab4f8', 
+              color: '#202124',
+              width: 'auto',
+              fontWeight: 500
+            }}
+          >
+            <Icons.Copy />
+            <span>{copySuccess ? 'Copied' : 'Copy link'}</span>
+          </button>
+
           <button className="meet-action-btn" title="Meeting details" onClick={copyConferenceLink}>
             <Icons.Info />
           </button>
@@ -549,14 +551,6 @@ function Conference() {
             title="Chat with everyone"
           >
             <Icons.Chat />
-          </button>
-          
-          <button className="meet-action-btn" title="Activities">
-            <Icons.Activities />
-          </button>
-          
-          <button className="meet-action-btn" title="Host controls">
-            <Icons.Security />
           </button>
         </div>
       </div>
