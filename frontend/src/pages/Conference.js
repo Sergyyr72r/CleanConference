@@ -5,14 +5,19 @@ import { getCookie, setCookie } from '../utils/cookies';
 import './Conference.css';
 
 // Icon paths - using public folder for better compatibility
+// In production, PUBLIC_URL might be empty, so we use relative paths
+const getIconPath = (iconName) => {
+  return `/icons/${iconName}.png`;
+};
+
 const iconPaths = {
-  micOn: process.env.PUBLIC_URL + '/icons/mic-on.png',
-  micOff: process.env.PUBLIC_URL + '/icons/mic-off.png',
-  videoOn: process.env.PUBLIC_URL + '/icons/video-on.png',
-  videoOff: process.env.PUBLIC_URL + '/icons/video-off.png',
-  screenShare: process.env.PUBLIC_URL + '/icons/screen-share.png',
-  endCall: process.env.PUBLIC_URL + '/icons/end-call.png',
-  copyLink: process.env.PUBLIC_URL + '/icons/copy-link.png',
+  micOn: getIconPath('mic-on'),
+  micOff: getIconPath('mic-off'),
+  videoOn: getIconPath('video-on'),
+  videoOff: getIconPath('video-off'),
+  screenShare: getIconPath('screen-share'),
+  endCall: getIconPath('end-call'),
+  copyLink: getIconPath('copy-link'),
 };
 
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001';
