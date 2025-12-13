@@ -25,16 +25,28 @@ const iconPaths = {
 
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001';
 
-// Icons Component Wrappers
+// Icons Component Wrappers with error handling
+const IconImg = ({ src, alt, className }) => (
+  <img 
+    src={src} 
+    alt={alt} 
+    className={className}
+    onError={(e) => {
+      console.error(`Failed to load icon: ${src}`);
+      e.target.style.display = 'none';
+    }}
+  />
+);
+
 const Icons = {
-  Mic: () => <img src={iconPaths.micOn} alt="Mic On" className="control-icon" />,
-  MicOff: () => <img src={iconPaths.micOff} alt="Mic Off" className="control-icon" />,
-  Video: () => <img src={iconPaths.videoOn} alt="Video On" className="control-icon" />,
-  VideoOff: () => <img src={iconPaths.videoOff} alt="Video Off" className="control-icon" />,
-  ScreenShare: () => <img src={iconPaths.screenShare} alt="Screen Share" className="control-icon" />,
-  ScreenShareActive: () => <img src={iconPaths.screenShare} alt="Screen Share Active" className="control-icon active" />,
-  CallEnd: () => <img src={iconPaths.endCall} alt="End Call" className="control-icon end-call" />,
-  Copy: () => <img src={iconPaths.copyLink} alt="Copy Link" className="control-icon copy-link" />,
+  Mic: () => <IconImg src={iconPaths.micOn} alt="Mic On" className="control-icon" />,
+  MicOff: () => <IconImg src={iconPaths.micOff} alt="Mic Off" className="control-icon" />,
+  Video: () => <IconImg src={iconPaths.videoOn} alt="Video On" className="control-icon" />,
+  VideoOff: () => <IconImg src={iconPaths.videoOff} alt="Video Off" className="control-icon" />,
+  ScreenShare: () => <IconImg src={iconPaths.screenShare} alt="Screen Share" className="control-icon" />,
+  ScreenShareActive: () => <IconImg src={iconPaths.screenShare} alt="Screen Share Active" className="control-icon active" />,
+  CallEnd: () => <IconImg src={iconPaths.endCall} alt="End Call" className="control-icon end-call" />,
+  Copy: () => <IconImg src={iconPaths.copyLink} alt="Copy Link" className="control-icon copy-link" />,
   
   // Keep standard SVGs for sidebar toggles as images weren't provided for them, or use placeholders if preferred. 
   // User only provided icons for bottom center controls and copy link.
