@@ -127,7 +127,10 @@ body {
 .meet-bottom-center {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 16px; /* Increased gap for larger buttons */
+  flex-wrap: nowrap;
+  position: relative;
 }
 
 /* Base button styles - keep for potential non-image buttons */
@@ -160,8 +163,15 @@ body {
   border-radius: 0; /* Images are already circular */
   min-width: 64px; /* Ensure equal sizing */
   min-height: 64px;
+  max-width: 64px; /* Prevent expansion */
+  max-height: 64px; /* Prevent expansion */
   box-shadow: none !important;
   outline: none;
+  position: relative; /* Ensure proper stacking */
+  flex-shrink: 0; /* Prevent shrinking in flexbox */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .meet-control-btn.image-btn:hover {
