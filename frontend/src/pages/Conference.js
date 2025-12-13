@@ -94,8 +94,12 @@ function Conference() {
     const pc = new RTCPeerConnection({
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' }
+      ],
+      iceCandidatePoolSize: 10
     });
 
     // Add local stream tracks
@@ -107,18 +111,74 @@ function Conference() {
 
     // Handle remote stream
     pc.ontrack = (event) => {
-      if (remoteVideosRef.current[socketId]) {
-        remoteVideosRef.current[socketId].srcObject = event.streams[0];
+      console.log('Received remote track from:', socketId, event.streams, event.track);
+      if (event.streams && event.streams[0]) {
+        const setVideoStream = (videoElement) => {
+          if (videoElement) {
+            videoElement.srcObject = event.streams[0];
+            // Ensure video plays
+            videoElement.play().catch(err => {
+              console.warn('Error playing remote video:', err);
+            });
+            console.log('Set remote stream on video element for:', socketId);
+          }
+        };
+
+        // Try to get video element immediately
+        let videoElement = remoteVideosRef.current[socketId];
+        
+        if (videoElement) {
+          setVideoStream(videoElement);
+        } else {
+          // Video element might not be created yet, retry a few times
+          let retries = 0;
+          const maxRetries = 10;
+          const retryInterval = setInterval(() => {
+            videoElement = remoteVideosRef.current[socketId];
+            if (videoElement) {
+              setVideoStream(videoElement);
+              clearInterval(retryInterval);
+            } else if (retries >= maxRetries) {
+              console.warn('Video element not found for socketId after retries:', socketId);
+              clearInterval(retryInterval);
+            }
+            retries++;
+          }, 100);
+        }
       }
     };
 
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate) {
+        console.log('Sending ICE candidate to:', socketId, event.candidate);
         socketRef.current.emit('ice-candidate', {
           target: socketId,
           candidate: event.candidate
         });
+      } else {
+        console.log('ICE gathering complete for:', socketId);
+      }
+    };
+
+    // Handle connection state changes
+    pc.onconnectionstatechange = () => {
+      console.log('Connection state changed for', socketId, ':', pc.connectionState);
+      if (pc.connectionState === 'failed') {
+        console.error('WebRTC connection failed for:', socketId);
+        // Optionally try to restart ICE
+        pc.restartIce();
+      } else if (pc.connectionState === 'connected') {
+        console.log('WebRTC connected successfully with:', socketId);
+      }
+    };
+
+    // Handle ICE connection state
+    pc.oniceconnectionstatechange = () => {
+      console.log('ICE connection state for', socketId, ':', pc.iceConnectionState);
+      if (pc.iceConnectionState === 'failed') {
+        console.error('ICE connection failed for:', socketId);
+        pc.restartIce();
       }
     };
 
