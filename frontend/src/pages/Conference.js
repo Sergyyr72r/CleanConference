@@ -467,12 +467,47 @@ function Conference() {
     navigate('/');
   };
 
-  const copyConferenceLink = () => {
+  const copyConferenceLink = async () => {
     const link = `${window.location.origin}/guest-join/${roomId}`;
-    navigator.clipboard.writeText(link).then(() => {
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-    });
+    
+    try {
+      // Try modern clipboard API first
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(link);
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+      } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = link;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+          const successful = document.execCommand('copy');
+          if (successful) {
+            setCopySuccess(true);
+            setTimeout(() => setCopySuccess(false), 2000);
+          } else {
+            console.error('Failed to copy link');
+            alert(`Link: ${link}`);
+          }
+        } catch (err) {
+          console.error('Fallback copy failed:', err);
+          alert(`Link: ${link}`);
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+      // Show link in alert as last resort
+      alert(`Link: ${link}`);
+    }
   };
 
   const handleNamePopupConfirm = () => {
