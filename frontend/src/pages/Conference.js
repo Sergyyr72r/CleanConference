@@ -194,34 +194,39 @@ function Conference() {
         setTimeout(() => {
           if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
             console.log('Recreating peer connection for:', socketId);
+            
+            // Remove all senders from old connection to free up tracks
+            pc.getSenders().forEach(sender => {
+              if (sender.track) {
+                pc.removeTrack(sender);
+              }
+            });
+            
             // Close old connection
             pc.close();
             // Remove from refs
             delete peerConnectionsRef.current[socketId];
             
-            // Recreate connection if socket is still active
-            if (socketRef.current && socketRef.current.connected) {
-              const newPc = createPeerConnection(socketId);
-              peerConnectionsRef.current[socketId] = newPc;
-              
-              // Try to reconnect
-              if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(track => {
-                  newPc.addTrack(track, localStreamRef.current);
-                });
+            // Wait a bit before recreating to ensure cleanup
+            setTimeout(() => {
+              // Recreate connection if socket is still active
+              if (socketRef.current && socketRef.current.connected) {
+                const newPc = createPeerConnection(socketId);
+                peerConnectionsRef.current[socketId] = newPc;
                 
-                // Create new offer
+                // Create new offer (tracks are already added in createPeerConnection)
                 newPc.createOffer().then(offer => {
                   newPc.setLocalDescription(offer);
                   socketRef.current.emit('offer', {
                     target: socketId,
                     offer: offer
                   });
+                  console.log('Sent reconnection offer to:', socketId);
                 }).catch(err => {
                   console.error('Error creating reconnection offer:', err);
                 });
               }
-            }
+            }, 500);
           }
         }, 2000);
       } else if (pc.connectionState === 'connected') {
