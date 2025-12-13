@@ -1,5 +1,5 @@
 :root {
-  --meet-bg: #202124;
+  --meet-bg: #000000;
   --meet-bar-bg: #202124;
   --meet-btn-bg: #3c4043;
   --meet-btn-hover: #474a4d;
@@ -35,6 +35,7 @@ body {
   padding: 16px;
   overflow: hidden;
   position: relative;
+  background-color: #000000;
 }
 
 .meet-video-grid {
