@@ -72,6 +72,12 @@ Deploying to the web is much easier than using ngrok! Here are the recommended o
 5. Click "Create Static Site"
 6. Copy the frontend URL (e.g., `https://meet-frontend.onrender.com`)
 
+**Important**: Make sure the `_redirects` file exists in `frontend/public/` folder to handle React Router routing. This file should contain:
+```
+/*    /index.html   200
+```
+This ensures all routes redirect to `index.html` so React Router can handle client-side routing.
+
 ### Step 4: Update Backend CLIENT_URL
 
 1. Go back to your backend service on Render
