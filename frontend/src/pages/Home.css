@@ -1,0 +1,127 @@
+.home-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, #fff5e6 0%, #ffe6cc 100%);
+}
+
+.home-header {
+  background: transparent;
+  color: #333;
+  padding: 30px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.home-header h1 {
+  font-size: 28px;
+  font-weight: 400;
+  color: #333;
+}
+
+.auth-buttons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.auth-btn, .logout-btn {
+  padding: 8px 16px;
+  border: 1px solid #333;
+  background: transparent;
+  color: #333;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.auth-btn:hover, .logout-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.home-content {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+}
+
+.main-actions {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  max-width: 800px;
+}
+
+.action-button {
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  font-weight: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  background: white;
+}
+
+.action-button.large {
+  padding: 60px 80px;
+  min-width: 300px;
+  min-height: 300px;
+}
+
+.action-button:not(.large) {
+  padding: 40px 50px;
+  min-width: 200px;
+  min-height: 200px;
+}
+
+.button-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+}
+
+.action-button.large .button-icon {
+  font-size: 80px;
+}
+
+.button-text {
+  font-size: 18px;
+  color: #333;
+}
+
+.action-button.large .button-text {
+  font-size: 24px;
+}
+
+.create-btn {
+  background: white;
+  color: #333;
+}
+
+.join-btn {
+  background: white;
+  color: #333;
+}
+
+.action-button:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+
+.action-button:active {
+  transform: translateY(-2px);
+}
+
+.secondary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+

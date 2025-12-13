@@ -1,0 +1,447 @@
+.conference-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #1a1a1a;
+  color: white;
+  overflow: hidden;
+}
+
+.conference-main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.video-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.video-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 10px;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.local-video,
+.remote-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #2d2d2d;
+  border-radius: 8px;
+  min-height: 200px;
+}
+
+.local-video {
+  border: 2px solid #1a73e8;
+}
+
+.conference-controls {
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  background: #2d2d2d;
+}
+
+.record-btn,
+.end-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+.record-btn {
+  background: #34a853;
+  color: white;
+}
+
+.record-btn:hover {
+  opacity: 0.9;
+}
+
+.record-btn.recording {
+  background: #ea4335;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.end-btn {
+  background: #ea4335;
+  color: white;
+}
+
+.end-btn:hover {
+  opacity: 0.9;
+}
+
+.copy-link-btn-controls {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: opacity 0.2s;
+  background: #1a73e8;
+  color: white;
+  white-space: nowrap;
+}
+
+.copy-link-btn-controls:hover {
+  opacity: 0.9;
+  background: #1557b0;
+}
+
+.settings-btn-controls {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: opacity 0.2s;
+  background: #666;
+  color: white;
+  white-space: nowrap;
+}
+
+.settings-btn-controls:hover {
+  opacity: 0.9;
+  background: #555;
+}
+
+/* Popup Styles */
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+.popup-box {
+  background: #2d2d2d;
+  border-radius: 12px;
+  padding: 30px;
+  min-width: 400px;
+  max-width: 500px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.popup-box h3 {
+  margin: 0 0 10px 0;
+  color: white;
+  font-size: 20px;
+}
+
+.popup-box p {
+  margin: 0 0 20px 0;
+  color: #aaa;
+  font-size: 14px;
+}
+
+.popup-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #404040;
+  border-radius: 4px;
+  background: #1a1a1a;
+  color: white;
+  font-size: 16px;
+  margin-bottom: 20px;
+}
+
+.popup-input:focus {
+  outline: none;
+  border-color: #1a73e8;
+}
+
+.popup-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.popup-confirm-btn,
+.popup-cancel-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.popup-confirm-btn {
+  background: #1a73e8;
+  color: white;
+}
+
+.popup-confirm-btn:hover {
+  background: #1557b0;
+}
+
+.popup-cancel-btn {
+  background: #666;
+  color: white;
+}
+
+.popup-cancel-btn:hover {
+  background: #555;
+}
+
+/* Settings Window */
+.settings-window {
+  background: #2d2d2d;
+  border-radius: 12px;
+  min-width: 500px;
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 30px;
+  border-bottom: 1px solid #404040;
+}
+
+.settings-header h3 {
+  margin: 0;
+  color: white;
+  font-size: 20px;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  color: #aaa;
+  font-size: 32px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-btn:hover {
+  color: white;
+}
+
+.settings-content {
+  padding: 30px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.settings-section {
+  margin-bottom: 20px;
+}
+
+.settings-section label {
+  display: block;
+  color: #aaa;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.settings-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #404040;
+  border-radius: 4px;
+  background: #1a1a1a;
+  color: white;
+  font-size: 16px;
+}
+
+.settings-input:focus {
+  outline: none;
+  border-color: #1a73e8;
+}
+
+.settings-footer {
+  padding: 20px 30px;
+  border-top: 1px solid #404040;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.settings-save-btn,
+.settings-cancel-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.settings-save-btn {
+  background: #1a73e8;
+  color: white;
+}
+
+.settings-save-btn:hover {
+  background: #1557b0;
+}
+
+.settings-cancel-btn {
+  background: #666;
+  color: white;
+}
+
+.settings-cancel-btn:hover {
+  background: #555;
+}
+
+.sidebar {
+  width: 350px;
+  background: #2d2d2d;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #404040;
+}
+
+.users-section,
+.chat-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid #404040;
+  min-height: 0;
+}
+
+.users-section h3,
+.chat-section h3 {
+  padding: 15px;
+  margin: 0;
+  background: #1a1a1a;
+  font-size: 16px;
+  border-bottom: 1px solid #404040;
+}
+
+.users-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.user-item {
+  padding: 10px;
+  margin-bottom: 5px;
+  background: #3d3d3d;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.user-item.local {
+  background: #1a73e8;
+  font-weight: 500;
+}
+
+.messages-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.message {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.message strong {
+  color: #1a73e8;
+  margin-right: 5px;
+}
+
+.chat-input-container {
+  display: flex;
+  padding: 15px;
+  gap: 10px;
+  border-top: 1px solid #404040;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #404040;
+  border-radius: 4px;
+  background: #3d3d3d;
+  color: white;
+  font-size: 14px;
+}
+
+.chat-input:focus {
+  outline: none;
+  border-color: #1a73e8;
+}
+
+.send-btn {
+  padding: 10px 20px;
+  background: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.send-btn:hover {
+  background: #1557b0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .conference-main {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: 300px;
+  }
+
+  .conference-controls {
+    flex-wrap: wrap;
+  }
+}
+
