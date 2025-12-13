@@ -5,9 +5,12 @@ import { getCookie, setCookie } from '../utils/cookies';
 import './Conference.css';
 
 // Icon paths - using public folder for better compatibility
-// In production, PUBLIC_URL might be empty, so we use relative paths
+// Use process.env.PUBLIC_URL with fallback to empty string for root-relative paths
 const getIconPath = (iconName) => {
-  return `/icons/${iconName}.png`;
+  const baseUrl = process.env.PUBLIC_URL || '';
+  // Remove trailing slash if present, then add icon path
+  const cleanBase = baseUrl.replace(/\/$/, '');
+  return `${cleanBase}/icons/${iconName}.png`;
 };
 
 const iconPaths = {
