@@ -20,8 +20,7 @@ const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001';
 
 // Icons Component Wrappers with error handling
 const IconImg = ({ src, alt, className }) => {
-  // Log icon path for debugging
-  React.useEffect(() => {
+  useEffect(() => {
     console.log(`Loading icon: ${src}`);
   }, [src]);
   
