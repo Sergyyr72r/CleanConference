@@ -467,16 +467,24 @@ function Conference() {
     navigate('/');
   };
 
-  const copyConferenceLink = async () => {
+  const copyConferenceLink = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     const link = `${window.location.origin}/guest-join/${roomId}`;
+    console.log('Copy link clicked, link:', link);
     
     try {
       // Try modern clipboard API first
       if (navigator.clipboard && navigator.clipboard.writeText) {
+        console.log('Using clipboard API');
         await navigator.clipboard.writeText(link);
+        console.log('Link copied successfully');
         setCopySuccess(true);
         setTimeout(() => setCopySuccess(false), 2000);
+        alert('Link copied to clipboard!');
       } else {
+        console.log('Using fallback method');
         // Fallback for older browsers
         const textArea = document.createElement('textarea');
         textArea.value = link;
@@ -490,15 +498,17 @@ function Conference() {
         try {
           const successful = document.execCommand('copy');
           if (successful) {
+            console.log('Link copied with fallback method');
             setCopySuccess(true);
             setTimeout(() => setCopySuccess(false), 2000);
+            alert('Link copied to clipboard!');
           } else {
             console.error('Failed to copy link');
-            alert(`Link: ${link}`);
+            alert(`Link: ${link}\n\nPlease copy this link manually.`);
           }
         } catch (err) {
           console.error('Fallback copy failed:', err);
-          alert(`Link: ${link}`);
+          alert(`Link: ${link}\n\nPlease copy this link manually.`);
         } finally {
           document.body.removeChild(textArea);
         }
@@ -506,7 +516,7 @@ function Conference() {
     } catch (err) {
       console.error('Failed to copy link:', err);
       // Show link in alert as last resort
-      alert(`Link: ${link}`);
+      alert(`Link: ${link}\n\nPlease copy this link manually.\n\nError: ${err.message}`);
     }
   };
 
@@ -596,14 +606,21 @@ function Conference() {
           <button 
             className="meet-action-btn copy-link-btn image-btn" 
             title="Copy link"
-            onClick={copyConferenceLink}
+            onClick={(e) => {
+              console.log('Copy button clicked');
+              copyConferenceLink(e);
+            }}
+            onMouseDown={(e) => e.preventDefault()}
             style={{ 
               borderRadius: '24px', 
               padding: '0',
               background: 'transparent',
-              width: 'auto',
+              width: '64px',
+              height: '64px',
               border: 'none',
-              boxShadow: 'none'
+              boxShadow: 'none',
+              cursor: 'pointer',
+              zIndex: 100
             }}
           >
             <Icons.Copy />

@@ -238,6 +238,10 @@ body {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 100;
 }
 
 .meet-action-btn.image-btn:hover {
