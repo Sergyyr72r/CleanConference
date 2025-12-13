@@ -149,3 +149,4 @@ When working correctly:
 5. Both see each other's video
 
 If Person A leaves before Person B joins, Person B will see an empty room (this is normal - the room is empty).
+

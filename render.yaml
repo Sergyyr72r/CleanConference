@@ -34,3 +34,4 @@ services:
         sync: false  # Set this manually with backend URL
       - key: REACT_APP_SOCKET_URL
         sync: false  # Set this manually with backend URL
+

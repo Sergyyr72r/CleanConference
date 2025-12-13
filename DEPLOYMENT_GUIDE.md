@@ -182,3 +182,4 @@ After deployment:
 5. Test on mobile devices
 
 Your app is now accessible worldwide! 🌍
+
