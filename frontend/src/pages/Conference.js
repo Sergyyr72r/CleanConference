@@ -22,12 +22,15 @@ function Conference() {
   const [showSettings, setShowSettings] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [popupNameInput, setPopupNameInput] = useState('');
+  const [isMuted, setIsMuted] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const socketRef = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideosRef = useRef({});
   const peerConnectionsRef = useRef({});
   const localStreamRef = useRef(null);
+  const screenShareStreamRef = useRef(null);
   const currentSocketIdRef = useRef(null);
 
   useEffect(() => {
@@ -59,6 +62,12 @@ function Conference() {
           localVideoRef.current.srcObject = stream;
         }
 
+        // Initialize mute state based on audio track
+        const audioTracks = stream.getAudioTracks();
+        if (audioTracks.length > 0) {
+          setIsMuted(!audioTracks[0].enabled);
+        }
+
         // Join room with name from cookie (or "Caller" if not set)
         const nameToUse = getCookie('userName') || 'Caller';
         socketRef.current.emit('join-room', roomId, nameToUse);
@@ -82,6 +91,9 @@ function Conference() {
       // Cleanup
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (screenShareStreamRef.current) {
+        screenShareStreamRef.current.getTracks().forEach(track => track.stop());
       }
       Object.values(peerConnectionsRef.current).forEach(pc => pc.close());
       if (socketRef.current) {
@@ -475,10 +487,169 @@ function Conference() {
     }
   };
 
+  const toggleMute = () => {
+    if (localStreamRef.current) {
+      const audioTracks = localStreamRef.current.getAudioTracks();
+      if (audioTracks.length > 0) {
+        const newMutedState = !isMuted;
+        // When muted, disable tracks (enabled = false)
+        // When unmuted, enable tracks (enabled = true)
+        audioTracks.forEach(track => {
+          track.enabled = !newMutedState;
+        });
+        setIsMuted(newMutedState);
+        
+        // Update all peer connections with the new track state
+        Object.values(peerConnectionsRef.current).forEach(pc => {
+          pc.getSenders().forEach(sender => {
+            if (sender.track && sender.track.kind === 'audio') {
+              sender.track.enabled = !newMutedState;
+            }
+          });
+        });
+      }
+    }
+  };
+
+  const toggleScreenShare = async () => {
+    try {
+      if (isScreenSharing) {
+        // Stop screen sharing
+        if (screenShareStreamRef.current) {
+          screenShareStreamRef.current.getTracks().forEach(track => track.stop());
+          screenShareStreamRef.current = null;
+        }
+
+        // Switch back to camera
+        try {
+          const cameraStream = await navigator.mediaDevices.getUserMedia({ 
+            video: true, 
+            audio: !isMuted // Keep audio muted state
+          });
+          
+          // Replace video tracks in all peer connections
+          const videoTrack = cameraStream.getVideoTracks()[0];
+          const audioTrack = cameraStream.getAudioTracks()[0];
+          
+          Object.values(peerConnectionsRef.current).forEach(pc => {
+            const videoSender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+            if (videoSender) {
+              videoSender.replaceTrack(videoTrack);
+            }
+            
+            // Update audio track if it changed
+            if (audioTrack) {
+              const audioSender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+              if (audioSender) {
+                audioSender.replaceTrack(audioTrack);
+              }
+            }
+          });
+
+          // Update local stream and video element
+          if (localStreamRef.current) {
+            const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
+            const oldAudioTrack = localStreamRef.current.getAudioTracks()[0];
+            
+            if (oldVideoTrack) {
+              localStreamRef.current.removeTrack(oldVideoTrack);
+              oldVideoTrack.stop();
+            }
+            if (oldAudioTrack && audioTrack) {
+              localStreamRef.current.removeTrack(oldAudioTrack);
+              oldAudioTrack.stop();
+            }
+            
+            localStreamRef.current.addTrack(videoTrack);
+            if (audioTrack) {
+              localStreamRef.current.addTrack(audioTrack);
+            }
+          } else {
+            localStreamRef.current = cameraStream;
+          }
+
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = localStreamRef.current;
+          }
+
+          setIsScreenSharing(false);
+        } catch (error) {
+          console.error('Error switching back to camera:', error);
+          alert('Could not switch back to camera. Please refresh the page.');
+        }
+      } else {
+        // Start screen sharing
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ 
+          video: true,
+          audio: true 
+        });
+
+        // Handle screen share ending (when user clicks stop sharing in browser)
+        screenStream.getVideoTracks()[0].addEventListener('ended', () => {
+          if (isScreenSharing) {
+            toggleScreenShare();
+          }
+        });
+
+        screenShareStreamRef.current = screenStream;
+
+        // Get audio from original stream if screen share doesn't have audio
+        let audioTrack = null;
+        if (localStreamRef.current) {
+          audioTrack = localStreamRef.current.getAudioTracks()[0];
+        }
+
+        // Replace video tracks in all peer connections
+        const videoTrack = screenStream.getVideoTracks()[0];
+        Object.values(peerConnectionsRef.current).forEach(pc => {
+          const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+          if (sender) {
+            sender.replaceTrack(videoTrack);
+          }
+        });
+
+        // Update local stream and video element
+        if (localStreamRef.current) {
+          const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
+          if (oldVideoTrack) {
+            localStreamRef.current.removeTrack(oldVideoTrack);
+            oldVideoTrack.stop();
+          }
+          localStreamRef.current.addTrack(videoTrack);
+          
+          // Keep audio from original stream
+          if (audioTrack && !screenStream.getAudioTracks()[0]) {
+            const newStream = new MediaStream([videoTrack, audioTrack]);
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = newStream;
+            }
+          } else {
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = localStreamRef.current;
+            }
+          }
+        } else {
+          localStreamRef.current = screenStream;
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = screenStream;
+          }
+        }
+
+        setIsScreenSharing(true);
+      }
+    } catch (error) {
+      console.error('Error toggling screen share:', error);
+      alert('Could not start screen sharing. Please allow screen sharing permissions.');
+    }
+  };
+
   const endConference = () => {
     if (window.confirm('Are you sure you want to end the conference?')) {
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (screenShareStreamRef.current) {
+        screenShareStreamRef.current.getTracks().forEach(track => track.stop());
       }
       if (mediaRecorder && isRecording) {
         stopRecording();
@@ -563,6 +734,20 @@ function Conference() {
             ))}
           </div>
           <div className="conference-controls">
+            <button
+              onClick={toggleMute}
+              className={isMuted ? 'mute-btn muted' : 'mute-btn'}
+              title={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted ? '🔇 Unmute' : '🎤 Mute'}
+            </button>
+            <button
+              onClick={toggleScreenShare}
+              className={isScreenSharing ? 'screen-share-btn active' : 'screen-share-btn'}
+              title={isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
+            >
+              {isScreenSharing ? '🖥️ Stop Sharing' : '🖥️ Share Screen'}
+            </button>
             <button
               onClick={isRecording ? stopRecording : startRecording}
               className={isRecording ? 'record-btn recording' : 'record-btn'}

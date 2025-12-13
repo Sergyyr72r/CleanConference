@@ -53,7 +53,9 @@
 }
 
 .record-btn,
-.end-btn {
+.end-btn,
+.mute-btn,
+.screen-share-btn {
   padding: 12px 24px;
   border: none;
   border-radius: 4px;
@@ -61,6 +63,7 @@
   cursor: pointer;
   font-weight: 500;
   transition: opacity 0.2s;
+  white-space: nowrap;
 }
 
 .record-btn {
@@ -129,6 +132,45 @@
 .settings-btn-controls:hover {
   opacity: 0.9;
   background: #555;
+}
+
+.mute-btn {
+  background: #4285f4;
+  color: white;
+}
+
+.mute-btn:hover {
+  opacity: 0.9;
+  background: #3367d6;
+}
+
+.mute-btn.muted {
+  background: #ea4335;
+}
+
+.mute-btn.muted:hover {
+  opacity: 0.9;
+  background: #c5221f;
+}
+
+.screen-share-btn {
+  background: #fbbc04;
+  color: #1a1a1a;
+}
+
+.screen-share-btn:hover {
+  opacity: 0.9;
+  background: #f9ab00;
+}
+
+.screen-share-btn.active {
+  background: #34a853;
+  color: white;
+}
+
+.screen-share-btn.active:hover {
+  opacity: 0.9;
+  background: #2d8e47;
 }
 
 /* Popup Styles */
