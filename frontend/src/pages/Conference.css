@@ -1,6 +1,6 @@
 :root {
   --meet-bg: #000000;
-  --meet-bar-bg: #202124;
+  --meet-bar-bg: #000000;
   --meet-btn-bg: #3c4043;
   --meet-btn-hover: #474a4d;
   --meet-btn-active: #434649; /* Toggled off state usually red or similar */
