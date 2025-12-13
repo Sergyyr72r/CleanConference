@@ -130,6 +130,7 @@ body {
   gap: 12px;
 }
 
+/* Base button styles - keep for potential non-image buttons */
 .meet-control-btn {
   width: 40px;
   height: 40px;
@@ -142,40 +143,34 @@ body {
   align-items: center;
   justify-content: center;
   transition: background-color 0.2s;
-  padding: 10px; /* For SVG sizing */
-  box-sizing: content-box; /* To keep size consistent */
+  padding: 10px;
+  box-sizing: content-box;
   width: 24px;
   height: 24px;
 }
 
-.meet-control-btn:hover {
-  background-color: var(--meet-btn-hover);
+/* Styles for image-based buttons to override defaults */
+.meet-control-btn.image-btn {
+  background-color: transparent;
+  width: 48px; /* Slightly larger for touch targets */
+  height: 48px;
+  padding: 0;
+  border-radius: 0; /* Images are already circular */
 }
 
-.meet-control-btn.active-red {
-  background-color: var(--meet-red);
+.meet-control-btn.image-btn:hover {
+  background-color: transparent; /* Hover handled by image visual or scale */
+  transform: scale(1.05);
 }
 
-.meet-control-btn.active-red:hover {
-  background-color: var(--meet-red-hover);
+.control-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
-.meet-control-btn.active-blue {
-  background-color: #8ab4f8;
-  color: #202124;
-}
-
-.meet-control-btn.end-call-btn {
-  background-color: var(--meet-red);
-  width: 48px; /* Pill shape usually but simple round is fine too, Google Meet uses round-rect pill sometimes */
-  border-radius: 24px;
-  width: 50px;
-  padding: 0 10px;
-}
-
-.meet-control-btn.end-call-btn:hover {
-  background-color: var(--meet-red-hover);
-}
+/* Active states handled by image swap logic in component */
 
 .meet-bottom-right {
   display: flex;
@@ -203,6 +198,12 @@ body {
 
 .meet-action-btn.active {
   color: #8ab4f8;
+}
+
+.meet-action-btn.image-btn {
+  width: 40px; /* Adjust size for copy link */
+  height: 40px;
+  padding: 0;
 }
 
 /* Sidebar */

@@ -4,21 +4,33 @@ import io from 'socket.io-client';
 import { getCookie, setCookie } from '../utils/cookies';
 import './Conference.css';
 
+// Import Icons
+import micOnIcon from '../assets/icons/mic-on.png';
+import micOffIcon from '../assets/icons/mic-off.png';
+import videoOnIcon from '../assets/icons/video-on.png';
+import videoOffIcon from '../assets/icons/video-off.png';
+import screenShareIcon from '../assets/icons/screen-share.png';
+import endCallIcon from '../assets/icons/end-call.png';
+import copyLinkIcon from '../assets/icons/copy-link.png';
+
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001';
 
-// Icons
+// Icons Component Wrappers
 const Icons = {
-  Mic: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 2.34 9 5v6c0 1.66 1.34 3 3 3z"/><path fill="currentColor" d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>,
-  MicOff: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02 5.01L7.75 8.78l1.22-1.23.03.01C9 7.55 9 7.55 9 7.56V5c0-1.66-1.34-3-3-3S3 3.34 3 5v.01l.01.02.01.03-.01-.06L3 5c0-1.1.9-2 2-2s2 .9 2 2v2.55l3.58 3.58c.21.6.32 1.25.32 1.93 0 2.76-2.24 5-5 5s-5-2.24-5-5H.82c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c1.37-.2 2.63-.78 3.68-1.58l3.15 3.15 1.41-1.41-5.08-5.07z"/></svg>,
-  Video: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M18 10.48V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4.48l4 3.98v-11l-4 3.98zm-2-.79V18H4V6h12v3.69z"/></svg>,
-  VideoOff: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M21 6.5l-4 4V6c0-1.1-.9-2-2-2H9.82L21 15.18V6.5zM3.27 2L2 3.27 4.73 6H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-1.27l2.73 2.73L22 19.73 3.27 2zM6 18V8h1.82l10 10H6z"/></svg>,
-  ScreenShare: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.11-.9-2-2-2H4c-1.11 0-2 .89-2 2v10c0 1.1.89 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>,
-  ScreenShareActive: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.11-.9-2-2-2H4c-1.11 0-2 .89-2 2v10c0 1.1.89 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6zm9-2h-2v-3l-2.5 2.5L7 2l5 5V4h2v4z"/></svg>,
-  CallEnd: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>,
+  Mic: () => <img src={micOnIcon} alt="Mic On" className="control-icon" />,
+  MicOff: () => <img src={micOffIcon} alt="Mic Off" className="control-icon" />,
+  Video: () => <img src={videoOnIcon} alt="Video On" className="control-icon" />,
+  VideoOff: () => <img src={videoOffIcon} alt="Video Off" className="control-icon" />,
+  ScreenShare: () => <img src={screenShareIcon} alt="Screen Share" className="control-icon" />,
+  ScreenShareActive: () => <img src={screenShareIcon} alt="Screen Share Active" className="control-icon active" />, // Using same icon, styling handles active state if needed or image itself
+  CallEnd: () => <img src={endCallIcon} alt="End Call" className="control-icon end-call" />,
+  Copy: () => <img src={copyLinkIcon} alt="Copy Link" className="control-icon copy-link" />,
+  
+  // Keep standard SVGs for sidebar toggles as images weren't provided for them, or use placeholders if preferred. 
+  // User only provided icons for bottom center controls and copy link.
   Info: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>,
   People: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>,
   Chat: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>,
-  Copy: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
 };
 
 function Conference() {
@@ -482,23 +494,23 @@ function Conference() {
 
         <div className="meet-bottom-center">
           <button 
-            className={`meet-control-btn ${isMuted ? 'active-red' : ''}`} 
+            className="meet-control-btn image-btn"
             onClick={toggleMute}
             title={isMuted ? "Unmute" : "Mute"}
           >
-            {isMuted ? <Icons.Mic /> : <Icons.MicOff />}
+            {isMuted ? <Icons.MicOff /> : <Icons.Mic />}
           </button>
           
           <button 
-            className={`meet-control-btn ${isVideoOff ? 'active-red' : ''}`} 
+            className="meet-control-btn image-btn"
             onClick={toggleVideo}
             title={isVideoOff ? "Turn on camera" : "Turn off camera"}
           >
-            {isVideoOff ? <Icons.Video /> : <Icons.VideoOff />}
+            {isVideoOff ? <Icons.VideoOff /> : <Icons.Video />}
           </button>
 
           <button 
-            className={`meet-control-btn ${isScreenSharing ? 'active-blue' : ''}`} 
+            className="meet-control-btn image-btn"
             onClick={toggleScreenShare}
             title="Present now"
           >
@@ -506,7 +518,7 @@ function Conference() {
           </button>
 
           <button 
-            className="meet-control-btn end-call-btn" 
+            className="meet-control-btn image-btn"
             onClick={endConference}
             title="Leave call"
           >
@@ -516,21 +528,19 @@ function Conference() {
 
         <div className="meet-bottom-right">
           <button 
-            className="meet-action-btn copy-link-btn" 
+            className="meet-action-btn copy-link-btn image-btn" 
             title="Copy link"
             onClick={copyConferenceLink}
             style={{ 
               borderRadius: '24px', 
-              padding: '0 16px', 
-              gap: '8px', 
-              background: '#8ab4f8', 
-              color: '#202124',
+              padding: '0',
+              background: 'transparent',
               width: 'auto',
-              fontWeight: 500
+              border: 'none',
+              boxShadow: 'none'
             }}
           >
             <Icons.Copy />
-            <span>{copySuccess ? 'Copied' : 'Copy link'}</span>
           </button>
 
           <button className="meet-action-btn" title="Meeting details" onClick={copyConferenceLink}>
