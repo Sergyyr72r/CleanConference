@@ -4,39 +4,43 @@ import io from 'socket.io-client';
 import { getCookie, setCookie } from '../utils/cookies';
 import './Conference.css';
 
-// Icon paths - using public folder for better compatibility
-// Use process.env.PUBLIC_URL with fallback to empty string for root-relative paths
-const getIconPath = (iconName) => {
-  const baseUrl = process.env.PUBLIC_URL || '';
-  // Remove trailing slash if present, then add icon path
-  const cleanBase = baseUrl.replace(/\/$/, '');
-  return `${cleanBase}/icons/${iconName}.png`;
-};
-
+// Icon paths - using public folder
+// For React apps, files in public folder are served from root
 const iconPaths = {
-  micOn: getIconPath('mic-on'),
-  micOff: getIconPath('mic-off'),
-  videoOn: getIconPath('video-on'),
-  videoOff: getIconPath('video-off'),
-  screenShare: getIconPath('screen-share'),
-  endCall: getIconPath('end-call'),
-  copyLink: getIconPath('copy-link'),
+  micOn: '/icons/mic-on.png',
+  micOff: '/icons/mic-off.png',
+  videoOn: '/icons/video-on.png',
+  videoOff: '/icons/video-off.png',
+  screenShare: '/icons/screen-share.png',
+  endCall: '/icons/end-call.png',
+  copyLink: '/icons/copy-link.png',
 };
 
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001';
 
 // Icons Component Wrappers with error handling
-const IconImg = ({ src, alt, className }) => (
-  <img 
-    src={src} 
-    alt={alt} 
-    className={className}
-    onError={(e) => {
-      console.error(`Failed to load icon: ${src}`);
-      e.target.style.display = 'none';
-    }}
-  />
-);
+const IconImg = ({ src, alt, className }) => {
+  // Log icon path for debugging
+  React.useEffect(() => {
+    console.log(`Loading icon: ${src}`);
+  }, [src]);
+  
+  return (
+    <img 
+      src={src} 
+      alt={alt} 
+      className={className}
+      onError={(e) => {
+        console.error(`Failed to load icon: ${src}`);
+        // Don't hide, show alt text instead
+        e.target.alt = alt + ' (icon failed to load)';
+      }}
+      onLoad={() => {
+        console.log(`Successfully loaded icon: ${src}`);
+      }}
+    />
+  );
+};
 
 const Icons = {
   Mic: () => <IconImg src={iconPaths.micOn} alt="Mic On" className="control-icon" />,
