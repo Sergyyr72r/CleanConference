@@ -4,27 +4,29 @@ import io from 'socket.io-client';
 import { getCookie, setCookie } from '../utils/cookies';
 import './Conference.css';
 
-// Import Icons
-import micOnIcon from '../assets/icons/mic-on.png';
-import micOffIcon from '../assets/icons/mic-off.png';
-import videoOnIcon from '../assets/icons/video-on.png';
-import videoOffIcon from '../assets/icons/video-off.png';
-import screenShareIcon from '../assets/icons/screen-share.png';
-import endCallIcon from '../assets/icons/end-call.png';
-import copyLinkIcon from '../assets/icons/copy-link.png';
+// Icon paths - using public folder for better compatibility
+const iconPaths = {
+  micOn: process.env.PUBLIC_URL + '/icons/mic-on.png',
+  micOff: process.env.PUBLIC_URL + '/icons/mic-off.png',
+  videoOn: process.env.PUBLIC_URL + '/icons/video-on.png',
+  videoOff: process.env.PUBLIC_URL + '/icons/video-off.png',
+  screenShare: process.env.PUBLIC_URL + '/icons/screen-share.png',
+  endCall: process.env.PUBLIC_URL + '/icons/end-call.png',
+  copyLink: process.env.PUBLIC_URL + '/icons/copy-link.png',
+};
 
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001';
 
 // Icons Component Wrappers
 const Icons = {
-  Mic: () => <img src={micOnIcon} alt="Mic On" className="control-icon" />,
-  MicOff: () => <img src={micOffIcon} alt="Mic Off" className="control-icon" />,
-  Video: () => <img src={videoOnIcon} alt="Video On" className="control-icon" />,
-  VideoOff: () => <img src={videoOffIcon} alt="Video Off" className="control-icon" />,
-  ScreenShare: () => <img src={screenShareIcon} alt="Screen Share" className="control-icon" />,
-  ScreenShareActive: () => <img src={screenShareIcon} alt="Screen Share Active" className="control-icon active" />, // Using same icon, styling handles active state if needed or image itself
-  CallEnd: () => <img src={endCallIcon} alt="End Call" className="control-icon end-call" />,
-  Copy: () => <img src={copyLinkIcon} alt="Copy Link" className="control-icon copy-link" />,
+  Mic: () => <img src={iconPaths.micOn} alt="Mic On" className="control-icon" />,
+  MicOff: () => <img src={iconPaths.micOff} alt="Mic Off" className="control-icon" />,
+  Video: () => <img src={iconPaths.videoOn} alt="Video On" className="control-icon" />,
+  VideoOff: () => <img src={iconPaths.videoOff} alt="Video Off" className="control-icon" />,
+  ScreenShare: () => <img src={iconPaths.screenShare} alt="Screen Share" className="control-icon" />,
+  ScreenShareActive: () => <img src={iconPaths.screenShare} alt="Screen Share Active" className="control-icon active" />,
+  CallEnd: () => <img src={iconPaths.endCall} alt="End Call" className="control-icon end-call" />,
+  Copy: () => <img src={iconPaths.copyLink} alt="Copy Link" className="control-icon copy-link" />,
   
   // Keep standard SVGs for sidebar toggles as images weren't provided for them, or use placeholders if preferred. 
   // User only provided icons for bottom center controls and copy link.

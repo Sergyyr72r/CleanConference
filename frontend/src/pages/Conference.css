@@ -185,18 +185,7 @@ body {
   object-fit: contain;
   display: block;
   flex-shrink: 0; /* Prevent shrinking */
-  /* Make black/very dark backgrounds more transparent */
-  mix-blend-mode: screen;
-  /* Fallback: if screen doesn't work, try lighten */
-}
-
-/* For icons that need different blending */
-.control-icon.end-call {
-  mix-blend-mode: screen;
-}
-
-.control-icon.copy-link {
-  mix-blend-mode: screen;
+  /* Remove mix-blend-mode as it may hide icons */
 }
 
 /* Active states handled by image swap logic in component */
