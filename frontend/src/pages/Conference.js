@@ -97,7 +97,23 @@ function Conference() {
         { urls: 'stun:stun1.l.google.com:19302' },
         { urls: 'stun:stun2.l.google.com:19302' },
         { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' }
+        { urls: 'stun:stun4.l.google.com:19302' },
+        // Free TURN server (may help with NAT traversal)
+        {
+          urls: 'turn:openrelay.metered.ca:80',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        },
+        {
+          urls: 'turn:openrelay.metered.ca:443',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        },
+        {
+          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        }
       ],
       iceCandidatePoolSize: 10
     });
@@ -166,10 +182,52 @@ function Conference() {
       console.log('Connection state changed for', socketId, ':', pc.connectionState);
       if (pc.connectionState === 'failed') {
         console.error('WebRTC connection failed for:', socketId);
-        // Optionally try to restart ICE
-        pc.restartIce();
+        console.log('Attempting to restart ICE...');
+        // Try to restart ICE
+        try {
+          pc.restartIce();
+        } catch (error) {
+          console.error('Error restarting ICE:', error);
+        }
+        
+        // If restart doesn't work, try recreating the connection after a delay
+        setTimeout(() => {
+          if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+            console.log('Recreating peer connection for:', socketId);
+            // Close old connection
+            pc.close();
+            // Remove from refs
+            delete peerConnectionsRef.current[socketId];
+            
+            // Recreate connection if socket is still active
+            if (socketRef.current && socketRef.current.connected) {
+              const newPc = createPeerConnection(socketId);
+              peerConnectionsRef.current[socketId] = newPc;
+              
+              // Try to reconnect
+              if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(track => {
+                  newPc.addTrack(track, localStreamRef.current);
+                });
+                
+                // Create new offer
+                newPc.createOffer().then(offer => {
+                  newPc.setLocalDescription(offer);
+                  socketRef.current.emit('offer', {
+                    target: socketId,
+                    offer: offer
+                  });
+                }).catch(err => {
+                  console.error('Error creating reconnection offer:', err);
+                });
+              }
+            }
+          }
+        }, 2000);
       } else if (pc.connectionState === 'connected') {
-        console.log('WebRTC connected successfully with:', socketId);
+        console.log('✅ WebRTC connected successfully with:', socketId);
+      } else if (pc.connectionState === 'connecting') {
+        console.log('🔄 WebRTC connecting to:', socketId);
       }
     };
 
@@ -177,8 +235,20 @@ function Conference() {
     pc.oniceconnectionstatechange = () => {
       console.log('ICE connection state for', socketId, ':', pc.iceConnectionState);
       if (pc.iceConnectionState === 'failed') {
-        console.error('ICE connection failed for:', socketId);
-        pc.restartIce();
+        console.error('❌ ICE connection failed for:', socketId);
+        console.log('This might be due to NAT/firewall issues. TURN servers may be needed.');
+        try {
+          pc.restartIce();
+          console.log('Restarted ICE gathering...');
+        } catch (error) {
+          console.error('Error restarting ICE:', error);
+        }
+      } else if (pc.iceConnectionState === 'connected') {
+        console.log('✅ ICE connected successfully to:', socketId);
+      } else if (pc.iceConnectionState === 'checking') {
+        console.log('🔄 ICE checking connection to:', socketId);
+      } else if (pc.iceConnectionState === 'disconnected') {
+        console.warn('⚠️ ICE disconnected from:', socketId);
       }
     };
 
