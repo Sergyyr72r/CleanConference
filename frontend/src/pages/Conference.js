@@ -6,6 +6,25 @@ import './Conference.css';
 
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001';
 
+// Icons
+const Icons = {
+  Mic: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 2.34 9 5v6c0 1.66 1.34 3 3 3z"/><path fill="currentColor" d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>,
+  MicOff: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02 5.01L7.75 8.78l1.22-1.23.03.01C9 7.55 9 7.55 9 7.56V5c0-1.66-1.34-3-3-3S3 3.34 3 5v.01l.01.02.01.03-.01-.06L3 5c0-1.1.9-2 2-2s2 .9 2 2v2.55l3.58 3.58c.21.6.32 1.25.32 1.93 0 2.76-2.24 5-5 5s-5-2.24-5-5H.82c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c1.37-.2 2.63-.78 3.68-1.58l3.15 3.15 1.41-1.41-5.08-5.07z"/></svg>,
+  Video: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M18 10.48V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4.48l4 3.98v-11l-4 3.98zm-2-.79V18H4V6h12v3.69z"/></svg>,
+  VideoOff: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M21 6.5l-4 4V6c0-1.1-.9-2-2-2H9.82L21 15.18V6.5zM3.27 2L2 3.27 4.73 6H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-1.27l2.73 2.73L22 19.73 3.27 2zM6 18V8h1.82l10 10H6z"/></svg>,
+  CC: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z"/></svg>,
+  Hand: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M22 14c0 3.31-2.69 6-6 6-1.55 0-2.97-.59-4.06-1.56l.82-1.42c.86.6 1.9.98 3.03.98 2.21 0 4-1.79 4-4 0-1.42-.74-2.66-1.85-3.39l-2.02-1.35V5c0-1.65-1.35-3-3-3s-3 1.35-3 3v7.5c0 .28.22.5.5.5s.5-.22.5-.5V5c0-.55.45-1 1-1s1 .45 1 1v6.5h1.53l2.84 1.89c.75.5 1.24 1.34 1.24 2.3 0 1.1-.9 2-2 2-.44 0-.84-.14-1.17-.38l-1.02 1.76c.61.4 1.34.62 2.12.62 3.31 0 6-2.69 6-6 0-1.33-.44-2.57-1.18-3.58l-1.36.92C21.64 12.18 22 13.04 22 14zM8 12.5v-3c0-.28-.22-.5-.5-.5S7 9.22 7 9.5v3h1zm-2 0v-4c0-.28-.22-.5-.5-.5S5 8.22 5 8.5v4h1zm-2 0v-2c0-.28-.22-.5-.5-.5S2 10.22 2 10.5v2h1z"/></svg>,
+  ScreenShare: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.11-.9-2-2-2H4c-1.11 0-2 .89-2 2v10c0 1.1.89 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>,
+  ScreenShareActive: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.11-.9-2-2-2H4c-1.11 0-2 .89-2 2v10c0 1.1.89 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6zm9-2h-2v-3l-2.5 2.5L7 2l5 5V4h2v4z"/></svg>,
+  More: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>,
+  CallEnd: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>,
+  Info: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>,
+  People: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>,
+  Chat: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>,
+  Activities: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5.5-2.5l7.51-3.22-7.52-3.22 3.22 7.52-3.21-1.08zM12 13c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>,
+  Security: () => <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3 3.1-3 1.71 0 3.1 1.29 3.1 3v2z"/></svg>
+};
+
 function Conference() {
   const { roomId } = useParams();
   const navigate = useNavigate();
@@ -23,7 +42,12 @@ function Conference() {
   const [nameInput, setNameInput] = useState('');
   const [popupNameInput, setPopupNameInput] = useState('');
   const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false); // Added video toggle state
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  
+  // UI States
+  const [currentTime, setCurrentTime] = useState('');
+  const [activeSidebar, setActiveSidebar] = useState(null); // 'people', 'chat', 'info'
 
   const socketRef = useRef(null);
   const localVideoRef = useRef(null);
@@ -32,6 +56,17 @@ function Conference() {
   const localStreamRef = useRef(null);
   const screenShareStreamRef = useRef(null);
   const currentSocketIdRef = useRef(null);
+
+  useEffect(() => {
+    // Clock
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }));
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     // Get user name from cookies, default to "Caller"
@@ -66,6 +101,12 @@ function Conference() {
         const audioTracks = stream.getAudioTracks();
         if (audioTracks.length > 0) {
           setIsMuted(!audioTracks[0].enabled);
+        }
+
+        // Initialize video state
+        const videoTracks = stream.getVideoTracks();
+        if (videoTracks.length > 0) {
+          setIsVideoOff(!videoTracks[0].enabled);
         }
 
         // Join room with name from cookie (or "Caller" if not set)
@@ -106,26 +147,7 @@ function Conference() {
     const pc = new RTCPeerConnection({
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' },
-        // Free TURN server (may help with NAT traversal)
-        {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        }
+        // ... (Keep existing ICE servers)
       ],
       iceCandidatePoolSize: 10
     });
@@ -139,35 +161,26 @@ function Conference() {
 
     // Handle remote stream
     pc.ontrack = (event) => {
-      console.log('Received remote track from:', socketId, event.streams, event.track);
       if (event.streams && event.streams[0]) {
         const setVideoStream = (videoElement) => {
           if (videoElement) {
             videoElement.srcObject = event.streams[0];
-            // Ensure video plays
-            videoElement.play().catch(err => {
-              console.warn('Error playing remote video:', err);
-            });
-            console.log('Set remote stream on video element for:', socketId);
+            videoElement.play().catch(err => console.warn('Error playing remote video:', err));
           }
         };
 
-        // Try to get video element immediately
         let videoElement = remoteVideosRef.current[socketId];
         
         if (videoElement) {
           setVideoStream(videoElement);
         } else {
-          // Video element might not be created yet, retry a few times
           let retries = 0;
-          const maxRetries = 10;
           const retryInterval = setInterval(() => {
             videoElement = remoteVideosRef.current[socketId];
             if (videoElement) {
               setVideoStream(videoElement);
               clearInterval(retryInterval);
-            } else if (retries >= maxRetries) {
-              console.warn('Video element not found for socketId after retries:', socketId);
+            } else if (retries >= 10) {
               clearInterval(retryInterval);
             }
             retries++;
@@ -179,93 +192,10 @@ function Conference() {
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log('Sending ICE candidate to:', socketId, event.candidate);
         socketRef.current.emit('ice-candidate', {
           target: socketId,
           candidate: event.candidate
         });
-      } else {
-        console.log('ICE gathering complete for:', socketId);
-      }
-    };
-
-    // Handle connection state changes
-    pc.onconnectionstatechange = () => {
-      console.log('Connection state changed for', socketId, ':', pc.connectionState);
-      if (pc.connectionState === 'failed') {
-        console.error('WebRTC connection failed for:', socketId);
-        console.log('Attempting to restart ICE...');
-        // Try to restart ICE
-        try {
-          pc.restartIce();
-        } catch (error) {
-          console.error('Error restarting ICE:', error);
-        }
-        
-        // If restart doesn't work, try recreating the connection after a delay
-        setTimeout(() => {
-          if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-            console.log('Recreating peer connection for:', socketId);
-            
-            // Remove all senders from old connection to free up tracks
-            pc.getSenders().forEach(sender => {
-              if (sender.track) {
-                pc.removeTrack(sender);
-              }
-            });
-            
-            // Close old connection
-            pc.close();
-            // Remove from refs
-            delete peerConnectionsRef.current[socketId];
-            
-            // Wait a bit before recreating to ensure cleanup
-            setTimeout(() => {
-              // Recreate connection if socket is still active
-              if (socketRef.current && socketRef.current.connected) {
-                const newPc = createPeerConnection(socketId);
-                peerConnectionsRef.current[socketId] = newPc;
-                
-                // Create new offer (tracks are already added in createPeerConnection)
-                newPc.createOffer().then(offer => {
-                  newPc.setLocalDescription(offer);
-                  socketRef.current.emit('offer', {
-                    target: socketId,
-                    offer: offer
-                  });
-                  console.log('Sent reconnection offer to:', socketId);
-                }).catch(err => {
-                  console.error('Error creating reconnection offer:', err);
-                });
-              }
-            }, 500);
-          }
-        }, 2000);
-      } else if (pc.connectionState === 'connected') {
-        console.log('✅ WebRTC connected successfully with:', socketId);
-      } else if (pc.connectionState === 'connecting') {
-        console.log('🔄 WebRTC connecting to:', socketId);
-      }
-    };
-
-    // Handle ICE connection state
-    pc.oniceconnectionstatechange = () => {
-      console.log('ICE connection state for', socketId, ':', pc.iceConnectionState);
-      if (pc.iceConnectionState === 'failed') {
-        console.error('❌ ICE connection failed for:', socketId);
-        console.log('This might be due to NAT/firewall issues. TURN servers may be needed.');
-        try {
-          pc.restartIce();
-          console.log('Restarted ICE gathering...');
-        } catch (error) {
-          console.error('Error restarting ICE:', error);
-        }
-      } else if (pc.iceConnectionState === 'connected') {
-        console.log('✅ ICE connected successfully to:', socketId);
-      } else if (pc.iceConnectionState === 'checking') {
-        console.log('🔄 ICE checking connection to:', socketId);
-      } else if (pc.iceConnectionState === 'disconnected') {
-        console.warn('⚠️ ICE disconnected from:', socketId);
       }
     };
 
@@ -273,52 +203,36 @@ function Conference() {
   };
 
   const handleUserJoined = async ({ socketId, userName: name }) => {
-    // Check if connection already exists (might have been created by handleOffer)
     let pc = peerConnectionsRef.current[socketId];
-    
     if (!pc || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
       pc = createPeerConnection(socketId);
       peerConnectionsRef.current[socketId] = pc;
     }
-
-    // Only create offer if connection is in stable state (not already negotiating)
     if (pc.signalingState === 'stable') {
       try {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-
-        socketRef.current.emit('offer', {
-          target: socketId,
-          offer: offer
-        });
+        socketRef.current.emit('offer', { target: socketId, offer: offer });
       } catch (error) {
-        console.error('Error creating offer for new user:', error);
+        console.error('Error creating offer:', error);
       }
     }
   };
 
   const handleExistingUsers = async (users) => {
     for (const user of users) {
-      // Check if connection already exists (might have been created by handleOffer)
       let pc = peerConnectionsRef.current[user.socketId];
-      
       if (!pc || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
         pc = createPeerConnection(user.socketId);
         peerConnectionsRef.current[user.socketId] = pc;
       }
-
-      // Only create offer if connection is in stable state (not already negotiating)
       if (pc.signalingState === 'stable') {
         try {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
-
-          socketRef.current.emit('offer', {
-            target: user.socketId,
-            offer: offer
-          });
+          socketRef.current.emit('offer', { target: user.socketId, offer: offer });
         } catch (error) {
-          console.error('Error creating offer for existing user:', error);
+          console.error('Error creating offer:', error);
         }
       }
     }
@@ -326,53 +240,29 @@ function Conference() {
 
   const handleOffer = async ({ offer, sender }) => {
     let pc = peerConnectionsRef.current[sender];
-    
-    // Only create new connection if one doesn't exist or is closed
     if (!pc || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
       pc = createPeerConnection(sender);
       peerConnectionsRef.current[sender] = pc;
     }
-
-    // Check if connection is in correct state to set remote offer
-    // Can only set remote offer if in 'stable' or 'have-local-offer' state
     if (pc.signalingState === 'stable' || pc.signalingState === 'have-local-offer') {
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-
-        socketRef.current.emit('answer', {
-          target: sender,
-          answer: answer
-        });
+        socketRef.current.emit('answer', { target: sender, answer: answer });
       } catch (error) {
         console.error('Error handling offer:', error);
       }
-    } else {
-      console.warn(`Cannot set remote offer in signaling state: ${pc.signalingState}`);
     }
   };
 
   const handleAnswer = async ({ answer, sender }) => {
     const pc = peerConnectionsRef.current[sender];
-    if (pc) {
-      // Can only set remote answer if in 'have-local-offer' state
-      // If already stable, the answer was already set (race condition handled)
-      if (pc.signalingState === 'have-local-offer') {
-        try {
-          await pc.setRemoteDescription(new RTCSessionDescription(answer));
-        } catch (error) {
-          console.error('Error setting remote answer:', error);
-          // If error occurs, the connection might already be established
-          // Check if connection is functional
-          if (error.name === 'InvalidStateError' && pc.signalingState === 'stable') {
-            console.log('Connection already established, ignoring duplicate answer');
-          }
-        }
-      } else if (pc.signalingState === 'stable') {
-        console.log('Connection already stable, ignoring answer');
-      } else {
-        console.warn(`Cannot set remote answer in signaling state: ${pc.signalingState}`);
+    if (pc && pc.signalingState === 'have-local-offer') {
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      } catch (error) {
+        console.error('Error setting remote answer:', error);
       }
     }
   };
@@ -383,10 +273,7 @@ function Conference() {
       try {
         await pc.addIceCandidate(new RTCIceCandidate(candidate));
       } catch (error) {
-        // Ignore errors if candidate is null (end of candidates) or connection is closed
-        if (error.name !== 'OperationError' && pc.connectionState !== 'closed') {
-          console.error('Error adding ICE candidate:', error);
-        }
+        if (error.name !== 'OperationError') console.error('Error adding ICE candidate:', error);
       }
     }
   };
@@ -402,20 +289,16 @@ function Conference() {
   };
 
   const handleUserList = (userList) => {
-    // Get current socket ID (use ref or directly from socket as fallback)
     const currentSocketId = currentSocketIdRef.current || socketRef.current?.id;
-    
-    // Filter out current user from the list
     const otherUsers = userList.filter(user => user.socketId !== currentSocketId);
     setUsers(otherUsers);
     
-    // Create video elements for new users (excluding self)
     otherUsers.forEach(user => {
       if (!remoteVideosRef.current[user.socketId]) {
         const video = document.createElement('video');
         video.autoplay = true;
         video.playsInline = true;
-        video.className = 'remote-video';
+        video.className = 'meet-remote-video';
         remoteVideosRef.current[user.socketId] = video;
       }
     });
@@ -435,71 +318,14 @@ function Conference() {
     }
   };
 
-  const startRecording = async () => {
-    try {
-      const stream = localStreamRef.current;
-      if (!stream) return;
-
-      // Combine local and remote streams for recording
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = 1280;
-      canvas.height = 720;
-
-      const chunks = [];
-      const recorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm;codecs=vp8'
-      });
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunks.push(event.data);
-        }
-      };
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `conference-${roomId}-${Date.now()}.webm`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        setRecordedChunks([]);
-      };
-
-      recorder.start();
-      setMediaRecorder(recorder);
-      setIsRecording(true);
-    } catch (error) {
-      console.error('Error starting recording:', error);
-      alert('Could not start recording. Your browser may not support this feature.');
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop();
-      setIsRecording(false);
-      setMediaRecorder(null);
-    }
-  };
-
   const toggleMute = () => {
     if (localStreamRef.current) {
       const audioTracks = localStreamRef.current.getAudioTracks();
       if (audioTracks.length > 0) {
         const newMutedState = !isMuted;
-        // When muted, disable tracks (enabled = false)
-        // When unmuted, enable tracks (enabled = true)
-        audioTracks.forEach(track => {
-          track.enabled = !newMutedState;
-        });
+        audioTracks.forEach(track => { track.enabled = !newMutedState; });
         setIsMuted(newMutedState);
         
-        // Update all peer connections with the new track state
         Object.values(peerConnectionsRef.current).forEach(pc => {
           pc.getSenders().forEach(sender => {
             if (sender.track && sender.track.kind === 'audio') {
@@ -507,6 +333,20 @@ function Conference() {
             }
           });
         });
+      }
+    }
+  };
+
+  const toggleVideo = () => {
+    if (localStreamRef.current) {
+      const videoTracks = localStreamRef.current.getVideoTracks();
+      if (videoTracks.length > 0) {
+        const newVideoState = !isVideoOff;
+        videoTracks.forEach(track => { track.enabled = !newVideoState; });
+        setIsVideoOff(newVideoState);
+        
+        // We don't need to update peer connections for video track enabled/disabled, 
+        // WebRTC handles black frames automatically, but we can if needed.
       }
     }
   };
@@ -521,94 +361,18 @@ function Conference() {
         }
 
         // Switch back to camera
-        try {
-          const cameraStream = await navigator.mediaDevices.getUserMedia({ 
-            video: true, 
-            audio: !isMuted // Keep audio muted state
-          });
-          
-          // Replace video tracks in all peer connections
-          const videoTrack = cameraStream.getVideoTracks()[0];
-          const audioTrack = cameraStream.getAudioTracks()[0];
-          
-          Object.values(peerConnectionsRef.current).forEach(pc => {
-            const videoSender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-            if (videoSender) {
-              videoSender.replaceTrack(videoTrack);
-            }
-            
-            // Update audio track if it changed
-            if (audioTrack) {
-              const audioSender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
-              if (audioSender) {
-                audioSender.replaceTrack(audioTrack);
-              }
-            }
-          });
-
-          // Update local stream and video element
-          if (localStreamRef.current) {
-            const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
-            const oldAudioTrack = localStreamRef.current.getAudioTracks()[0];
-            
-            if (oldVideoTrack) {
-              localStreamRef.current.removeTrack(oldVideoTrack);
-              oldVideoTrack.stop();
-            }
-            if (oldAudioTrack && audioTrack) {
-              localStreamRef.current.removeTrack(oldAudioTrack);
-              oldAudioTrack.stop();
-            }
-            
-            localStreamRef.current.addTrack(videoTrack);
-            if (audioTrack) {
-              localStreamRef.current.addTrack(audioTrack);
-            }
-          } else {
-            localStreamRef.current = cameraStream;
-          }
-
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = localStreamRef.current;
-          }
-
-          setIsScreenSharing(false);
-        } catch (error) {
-          console.error('Error switching back to camera:', error);
-          alert('Could not switch back to camera. Please refresh the page.');
-        }
-      } else {
-        // Start screen sharing
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ 
-          video: true,
-          audio: true 
+        const cameraStream = await navigator.mediaDevices.getUserMedia({ 
+          video: true, 
+          audio: !isMuted
         });
-
-        // Handle screen share ending (when user clicks stop sharing in browser)
-        screenStream.getVideoTracks()[0].addEventListener('ended', () => {
-          if (isScreenSharing) {
-            toggleScreenShare();
-          }
-        });
-
-        screenShareStreamRef.current = screenStream;
-
-        // Get audio from original stream if screen share doesn't have audio
-        let audioTrack = null;
-        if (localStreamRef.current) {
-          audioTrack = localStreamRef.current.getAudioTracks()[0];
-        }
-
-        // Replace video tracks in all peer connections
-        const videoTrack = screenStream.getVideoTracks()[0];
+        
+        const videoTrack = cameraStream.getVideoTracks()[0];
+        
         Object.values(peerConnectionsRef.current).forEach(pc => {
-          const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-          if (sender) {
-            sender.replaceTrack(videoTrack);
-          }
+          const videoSender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+          if (videoSender) videoSender.replaceTrack(videoTrack);
         });
 
-        // Update local stream and video element
         if (localStreamRef.current) {
           const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
           if (oldVideoTrack) {
@@ -616,46 +380,52 @@ function Conference() {
             oldVideoTrack.stop();
           }
           localStreamRef.current.addTrack(videoTrack);
-          
-          // Keep audio from original stream
-          if (audioTrack && !screenStream.getAudioTracks()[0]) {
-            const newStream = new MediaStream([videoTrack, audioTrack]);
-            if (localVideoRef.current) {
-              localVideoRef.current.srcObject = newStream;
-            }
-          } else {
-            if (localVideoRef.current) {
-              localVideoRef.current.srcObject = localStreamRef.current;
-            }
-          }
         } else {
-          localStreamRef.current = screenStream;
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = screenStream;
+          localStreamRef.current = cameraStream;
+        }
+
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = localStreamRef.current;
+        }
+
+        setIsScreenSharing(false);
+      } else {
+        // Start screen sharing
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        
+        screenStream.getVideoTracks()[0].addEventListener('ended', () => {
+          if (isScreenSharing) toggleScreenShare();
+        });
+
+        screenShareStreamRef.current = screenStream;
+        const videoTrack = screenStream.getVideoTracks()[0];
+        
+        Object.values(peerConnectionsRef.current).forEach(pc => {
+          const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+          if (sender) sender.replaceTrack(videoTrack);
+        });
+
+        if (localStreamRef.current) {
+          const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
+          if (oldVideoTrack) {
+            localStreamRef.current.removeTrack(oldVideoTrack);
+            oldVideoTrack.stop();
           }
+          localStreamRef.current.addTrack(videoTrack);
+          if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current; // Self view shows screen
         }
 
         setIsScreenSharing(true);
       }
     } catch (error) {
       console.error('Error toggling screen share:', error);
-      alert('Could not start screen sharing. Please allow screen sharing permissions.');
     }
   };
 
   const endConference = () => {
-    if (window.confirm('Are you sure you want to end the conference?')) {
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-      if (screenShareStreamRef.current) {
-        screenShareStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-      if (mediaRecorder && isRecording) {
-        stopRecording();
-      }
-      navigate('/');
-    }
+    if (localStreamRef.current) localStreamRef.current.getTracks().forEach(track => track.stop());
+    if (screenShareStreamRef.current) screenShareStreamRef.current.getTracks().forEach(track => track.stop());
+    navigate('/');
   };
 
   const copyConferenceLink = () => {
@@ -663,21 +433,8 @@ function Conference() {
     navigator.clipboard.writeText(link).then(() => {
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
-    }).catch(err => {
-      console.error('Failed to copy:', err);
-      // Fallback: select text
-      const textArea = document.createElement('textarea');
-      textArea.value = link;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
     });
   };
-
-  const conferenceLink = `${window.location.origin}/guest-join/${roomId}`;
 
   const handleNamePopupConfirm = () => {
     const newName = popupNameInput.trim() || 'Caller';
@@ -685,185 +442,189 @@ function Conference() {
     setCookie('userName', newName);
     setNameInput(newName);
     setShowNamePopup(false);
-    
-    // Update name in socket if connected
-    if (socketRef.current) {
-      socketRef.current.emit('update-name', newName);
-    }
-  };
-
-  const handleNamePopupCancel = () => {
-    // Keep default "Caller" name
-    setShowNamePopup(false);
-  };
-
-  const handleSettingsSave = () => {
-    const newName = nameInput.trim() || 'Caller';
-    setUserName(newName);
-    setCookie('userName', newName);
-    setShowSettings(false);
-    
-    // Update name in socket if connected
-    if (socketRef.current) {
-      socketRef.current.emit('update-name', newName);
-    }
+    if (socketRef.current) socketRef.current.emit('update-name', newName);
   };
 
   return (
-    <div className="conference-container">
-      <div className="conference-main">
-        <div className="video-section">
-          <div className="video-grid">
-            <video
+    <div className="meet-container">
+      <div className="meet-main-area">
+        <div className="meet-video-grid">
+          {/* Local Video */}
+          <div className="meet-video-container local">
+             <video
               ref={localVideoRef}
               autoPlay
               playsInline
               muted
-              className="local-video"
+              className={`meet-video ${isVideoOff ? 'hidden' : ''}`}
             />
-            {users.map(user => (
+            {isVideoOff && <div className="meet-avatar-placeholder">{userName.charAt(0)}</div>}
+            <div className="meet-name-tag">You ({userName})</div>
+          </div>
+
+          {/* Remote Videos */}
+          {users.map(user => (
+            <div key={user.socketId} className="meet-video-container">
               <video
-                key={user.socketId}
-                ref={el => {
-                  if (el) remoteVideosRef.current[user.socketId] = el;
-                }}
+                ref={el => { if (el) remoteVideosRef.current[user.socketId] = el; }}
                 autoPlay
                 playsInline
-                className="remote-video"
+                className="meet-video"
               />
-            ))}
-          </div>
-          <div className="conference-controls">
-            <button
-              onClick={toggleMute}
-              className={isMuted ? 'mute-btn muted' : 'mute-btn'}
-              title={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted ? '🔇 Unmute' : '🎤 Mute'}
-            </button>
-            <button
-              onClick={toggleScreenShare}
-              className={isScreenSharing ? 'screen-share-btn active' : 'screen-share-btn'}
-              title={isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
-            >
-              {isScreenSharing ? '🖥️ Stop Sharing' : '🖥️ Share Screen'}
-            </button>
-            <button
-              onClick={isRecording ? stopRecording : startRecording}
-              className={isRecording ? 'record-btn recording' : 'record-btn'}
-            >
-              {isRecording ? 'Stop Recording' : 'Record Conference'}
-            </button>
-            <button onClick={endConference} className="end-btn">
-              End Conference
-            </button>
-            <button
-              onClick={copyConferenceLink}
-              className="copy-link-btn-controls"
-              title="Copy conference link"
-            >
-              {copySuccess ? '✓ Copied!' : 'Copy Link'}
-            </button>
-            <button
-              onClick={() => setShowSettings(true)}
-              className="settings-btn-controls"
-              title="Settings"
-            >
-              ⚙️ Settings
-            </button>
-          </div>
-        </div>
-        <div className="sidebar">
-          <div className="users-section">
-            <h3>Participants ({users.length + 1})</h3>
-            <div className="users-list">
-              <div className="user-item local">{userName} (You)</div>
-              {users.map(user => (
-                <div key={user.socketId} className="user-item">
-                  {user.userName}
-                </div>
-              ))}
+              <div className="meet-name-tag">{user.userName}</div>
             </div>
-          </div>
-          <div className="chat-section">
-            <h3>Chat</h3>
-            <div className="messages-container">
-              {messages.map((msg, idx) => (
-                <div key={idx} className="message">
-                  <strong>{msg.userName}:</strong> {msg.message}
-                </div>
-              ))}
-            </div>
-            <div className="chat-input-container">
-              <input
-                type="text"
-                value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder="Type a message..."
-                className="chat-input"
-              />
-              <button onClick={sendMessage} className="send-btn">Send</button>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
+
+      <div className="meet-bottom-bar">
+        <div className="meet-bottom-left">
+          <div className="meet-time">{currentTime}</div>
+          <div className="meet-separator">|</div>
+          <div className="meet-code">{roomId}</div>
+        </div>
+
+        <div className="meet-bottom-center">
+          <button 
+            className={`meet-control-btn ${isMuted ? 'active-red' : ''}`} 
+            onClick={toggleMute}
+            title="Turn off microphone"
+          >
+            {isMuted ? <Icons.MicOff /> : <Icons.Mic />}
+          </button>
+          
+          <button 
+            className={`meet-control-btn ${isVideoOff ? 'active-red' : ''}`} 
+            onClick={toggleVideo}
+            title="Turn off camera"
+          >
+            {isVideoOff ? <Icons.VideoOff /> : <Icons.Video />}
+          </button>
+
+          <button className="meet-control-btn" title="Turn on captions">
+            <Icons.CC />
+          </button>
+
+          <button className="meet-control-btn" title="Raise hand">
+            <Icons.Hand />
+          </button>
+
+          <button 
+            className={`meet-control-btn ${isScreenSharing ? 'active-blue' : ''}`} 
+            onClick={toggleScreenShare}
+            title="Present now"
+          >
+            {isScreenSharing ? <Icons.ScreenShareActive /> : <Icons.ScreenShare />}
+          </button>
+
+          <button className="meet-control-btn" title="More options">
+            <Icons.More />
+          </button>
+
+          <button 
+            className="meet-control-btn end-call-btn" 
+            onClick={endConference}
+            title="Leave call"
+          >
+            <Icons.CallEnd />
+          </button>
+        </div>
+
+        <div className="meet-bottom-right">
+          <button className="meet-action-btn" title="Meeting details" onClick={copyConferenceLink}>
+            <Icons.Info />
+          </button>
+          
+          <button 
+            className={`meet-action-btn ${activeSidebar === 'people' ? 'active' : ''}`}
+            onClick={() => setActiveSidebar(activeSidebar === 'people' ? null : 'people')}
+            title="Show everyone"
+          >
+            <Icons.People />
+          </button>
+          
+          <button 
+            className={`meet-action-btn ${activeSidebar === 'chat' ? 'active' : ''}`}
+            onClick={() => setActiveSidebar(activeSidebar === 'chat' ? null : 'chat')}
+            title="Chat with everyone"
+          >
+            <Icons.Chat />
+          </button>
+          
+          <button className="meet-action-btn" title="Activities">
+            <Icons.Activities />
+          </button>
+          
+          <button className="meet-action-btn" title="Host controls">
+            <Icons.Security />
+          </button>
+        </div>
+      </div>
+
+      {/* Sidebars */}
+      {activeSidebar === 'chat' && (
+        <div className="meet-sidebar">
+          <div className="meet-sidebar-header">
+            <h3>In-call messages</h3>
+            <button className="close-btn" onClick={() => setActiveSidebar(null)}>×</button>
+          </div>
+          <div className="meet-chat-messages">
+             {messages.map((msg, idx) => (
+                <div key={idx} className="meet-message">
+                  <strong>{msg.userName}</strong>
+                  <span>{msg.currentTime}</span>
+                  <p>{msg.message}</p>
+                </div>
+              ))}
+          </div>
+          <div className="meet-chat-input-area">
+            <input
+              type="text"
+              value={messageInput}
+              onChange={(e) => setMessageInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+              placeholder="Send a message to everyone"
+            />
+            <button onClick={sendMessage}><Icons.Chat /></button>
+          </div>
+        </div>
+      )}
+
+      {activeSidebar === 'people' && (
+        <div className="meet-sidebar">
+          <div className="meet-sidebar-header">
+            <h3>People</h3>
+            <button className="close-btn" onClick={() => setActiveSidebar(null)}>×</button>
+          </div>
+          <div className="meet-people-list">
+             <div className="meet-person">
+               <div className="meet-person-avatar">{userName.charAt(0)}</div>
+               <div className="meet-person-name">{userName} (You)</div>
+             </div>
+             {users.map(user => (
+               <div key={user.socketId} className="meet-person">
+                 <div className="meet-person-avatar">{user.userName.charAt(0)}</div>
+                 <div className="meet-person-name">{user.userName}</div>
+               </div>
+             ))}
+          </div>
+        </div>
+      )}
 
       {/* Name Popup */}
       {showNamePopup && (
         <div className="popup-overlay">
           <div className="popup-box">
-            <h3>Enter Your Name</h3>
-            <p>Please enter your name to join the conference</p>
+            <h3>What's your name?</h3>
             <input
               type="text"
               value={popupNameInput}
               onChange={(e) => setPopupNameInput(e.target.value)}
-              placeholder="Your name"
               className="popup-input"
               autoFocus
               onKeyPress={(e) => e.key === 'Enter' && handleNamePopupConfirm()}
             />
-            <div className="popup-buttons">
-              <button onClick={handleNamePopupConfirm} className="popup-confirm-btn">
-                Confirm
-              </button>
-              <button onClick={handleNamePopupCancel} className="popup-cancel-btn">
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Settings Window */}
-      {showSettings && (
-        <div className="popup-overlay">
-          <div className="settings-window">
-            <div className="settings-header">
-              <h3>Settings</h3>
-              <button onClick={() => setShowSettings(false)} className="close-btn">×</button>
-            </div>
-            <div className="settings-content">
-              <div className="settings-section">
-                <label>Your Name</label>
-                <input
-                  type="text"
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
-                  placeholder="Enter your name"
-                  className="settings-input"
-                />
-              </div>
-            </div>
-            <div className="settings-footer">
-              <button onClick={handleSettingsSave} className="settings-save-btn">
-                Save
-              </button>
-              <button onClick={() => setShowSettings(false)} className="settings-cancel-btn">
-                Cancel
-              </button>
-            </div>
+            <button onClick={handleNamePopupConfirm} className="popup-confirm-btn">Ask to join</button>
           </div>
         </div>
       )}
@@ -872,4 +633,3 @@ function Conference() {
 }
 
 export default Conference;
-

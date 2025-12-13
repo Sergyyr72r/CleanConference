@@ -1,435 +1,367 @@
-.conference-container {
+:root {
+  --meet-bg: #202124;
+  --meet-bar-bg: #202124;
+  --meet-btn-bg: #3c4043;
+  --meet-btn-hover: #474a4d;
+  --meet-btn-active: #434649; /* Toggled off state usually red or similar */
+  --meet-red: #ea4335;
+  --meet-red-hover: #d93025;
+  --meet-blue: #8ab4f8;
+  --meet-blue-bg: #8ab4f8; /* For active toggles like screen share */
+  --meet-text: #e8eaed;
+  --meet-secondary-text: #9aa0a6;
+}
+
+body {
+  background-color: var(--meet-bg);
+  color: var(--meet-text);
+  margin: 0;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+}
+
+.meet-container {
+  display: flex;
+  flex-direction: column;
   height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: transparent; /* Body has background */
-  color: var(--text-primary);
+  background-color: var(--meet-bg);
   overflow: hidden;
+}
+
+.meet-main-area {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   padding: 16px;
-  gap: 16px;
-}
-
-.conference-main {
-  display: flex;
-  flex: 1;
   overflow: hidden;
-  gap: 16px;
   position: relative;
 }
 
-.video-section {
-  flex: 1;
+.meet-video-grid {
   display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: var(--panel-radius);
-  /* Transparent container to let videos float or have a subtle backing */
-  position: relative;
-}
-
-.video-grid {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
   gap: 16px;
-  padding: 0;
-  overflow-y: auto;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
 }
 
-/* Scrollbar styling */
-.video-grid::-webkit-scrollbar {
-  width: 8px;
+.meet-video-container {
+  position: relative;
+  background: #3c4043;
+  border-radius: 8px;
+  overflow: hidden;
+  width: 100%;
+  max-width: 800px; /* Adjust based on participant count logic if needed */
+  aspect-ratio: 16/9;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: 1 1 400px;
 }
 
-.video-grid::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.video-grid::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-}
-
-.local-video,
-.remote-video {
+.meet-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  background: #2d2d2d;
-  border-radius: 24px;
-  min-height: 240px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-  transition: transform 0.3s ease;
+  transform: scaleX(-1); /* Mirror local video */
 }
 
-.local-video {
-  border: 2px solid var(--primary-accent);
+.meet-video.hidden {
+  display: none;
 }
 
-.remote-video {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* Floating Dock for Controls */
-.conference-controls {
-  position: absolute;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 12px 24px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
-  background: rgba(20, 20, 20, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 60px;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-  z-index: 100;
-  width: auto;
-  min-width: fit-content;
-}
-
-.record-btn,
-.end-btn,
-.mute-btn,
-.screen-share-btn,
-.copy-link-btn-controls,
-.settings-btn-controls {
-  width: 48px;
-  height: 48px;
-  padding: 0; /* Icon only preferred, but text works too */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
+.meet-avatar-placeholder {
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
-  font-size: 14px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #5f6368; /* Generic Google color */
   color: white;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-/* Tooltip like text handling could be added, but assuming text inside buttons for now, let's make them pills if they have text */
-.record-btn, .end-btn, .copy-link-btn-controls, .settings-btn-controls {
-  width: auto;
-  padding: 0 20px;
-  border-radius: 40px;
-}
-
-.record-btn {
-  background: rgba(48, 209, 88, 0.2);
-  color: var(--success-color);
-  border: 1px solid rgba(48, 209, 88, 0.3);
-}
-
-.record-btn:hover {
-  background: rgba(48, 209, 88, 0.3);
-  transform: scale(1.05);
-}
-
-.record-btn.recording {
-  background: rgba(255, 69, 58, 0.2);
-  color: var(--danger-color);
-  border: 1px solid rgba(255, 69, 58, 0.3);
-  animation: pulse-recording 2s infinite;
-}
-
-@keyframes pulse-recording {
-  0% { box-shadow: 0 0 0 0 rgba(255, 69, 58, 0.4); }
-  70% { box-shadow: 0 0 0 10px rgba(255, 69, 58, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 69, 58, 0); }
-}
-
-.end-btn {
-  background: var(--danger-color);
-  color: white;
-  box-shadow: 0 4px 12px rgba(255, 69, 58, 0.4);
-}
-
-.end-btn:hover {
-  transform: scale(1.05);
-  background: #ff3b30;
-}
-
-.copy-link-btn-controls,
-.settings-btn-controls {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.copy-link-btn-controls:hover,
-.settings-btn-controls:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: scale(1.05);
-}
-
-.mute-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.mute-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.mute-btn.muted {
-  background: rgba(255, 69, 58, 0.2);
-  color: var(--danger-color);
-  border-color: rgba(255, 69, 58, 0.3);
-}
-
-.screen-share-btn {
-  background: rgba(10, 132, 255, 0.1);
-  color: var(--primary-accent);
-  border: 1px solid rgba(10, 132, 255, 0.3);
-}
-
-.screen-share-btn.active {
-  background: var(--success-color);
-  color: white;
-}
-
-/* Sidebar (Chat/Users) */
-.sidebar {
-  width: 360px;
-  background: rgba(30, 30, 30, 0.6);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 24px;
+  font-size: 48px;
   display: flex;
-  flex-direction: column;
-  margin-left: 16px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-  overflow: hidden;
-}
-
-.users-section,
-.chat-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  min-height: 0;
-}
-
-.users-section h3,
-.chat-section h3 {
-  padding: 20px;
-  margin: 0;
-  background: rgba(255, 255, 255, 0.03);
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
+  align-items: center;
+  justify-content: center;
   text-transform: uppercase;
-  color: var(--text-secondary);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.users-list {
+.meet-name-tag {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  background: rgba(0,0,0,0.3);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+/* Bottom Bar */
+.meet-bottom-bar {
+  height: 80px;
+  background-color: var(--meet-bar-bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  z-index: 10;
+}
+
+.meet-bottom-left {
+  display: flex;
+  align-items: center;
+  color: white;
+  font-size: 16px;
+  font-weight: 500;
+  min-width: 200px;
+}
+
+.meet-separator {
+  margin: 0 8px;
+  color: var(--meet-secondary-text);
+}
+
+.meet-bottom-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.meet-control-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background-color: var(--meet-btn-bg);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+  padding: 10px; /* For SVG sizing */
+  box-sizing: content-box; /* To keep size consistent */
+  width: 24px;
+  height: 24px;
+}
+
+.meet-control-btn:hover {
+  background-color: var(--meet-btn-hover);
+}
+
+.meet-control-btn.active-red {
+  background-color: var(--meet-red);
+}
+
+.meet-control-btn.active-red:hover {
+  background-color: var(--meet-red-hover);
+}
+
+.meet-control-btn.active-blue {
+  background-color: #8ab4f8;
+  color: #202124;
+}
+
+.meet-control-btn.end-call-btn {
+  background-color: var(--meet-red);
+  width: 48px; /* Pill shape usually but simple round is fine too, Google Meet uses round-rect pill sometimes */
+  border-radius: 24px;
+  width: 50px;
+  padding: 0 10px;
+}
+
+.meet-control-btn.end-call-btn:hover {
+  background-color: var(--meet-red-hover);
+}
+
+.meet-bottom-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  justify-content: flex-end;
+  min-width: 200px;
+}
+
+.meet-action-btn {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.meet-action-btn:hover {
+  background-color: rgba(232, 234, 237, 0.1);
+}
+
+.meet-action-btn.active {
+  color: #8ab4f8;
+}
+
+/* Sidebar */
+.meet-sidebar {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  bottom: 96px; /* Space for bottom bar + margin */
+  width: 360px;
+  background: white;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 2px 6px 2px rgba(60,64,67,0.15);
+  z-index: 20;
+}
+
+.meet-sidebar-header {
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #dadce0;
+}
+
+.meet-sidebar-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 400;
+  color: #202124;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #5f6368;
+}
+
+.meet-people-list,
+.meet-chat-messages {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
 }
 
-.user-item {
-  padding: 12px 16px;
-  margin-bottom: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  font-size: 14px;
+.meet-person {
   display: flex;
   align-items: center;
-  transition: background 0.2s;
-}
-
-.user-item:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.user-item.local {
-  background: rgba(10, 132, 255, 0.2);
-  color: #fff;
-  border: 1px solid rgba(10, 132, 255, 0.3);
-}
-
-.messages-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
   gap: 12px;
+  margin-bottom: 16px;
 }
 
-.message {
+.meet-person-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #5f6368; /* Randomize colors later if needed */
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 14px;
-  line-height: 1.5;
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  border-bottom-left-radius: 2px;
-  align-self: flex-start;
-  max-width: 90%;
 }
 
-.message strong {
-  color: var(--primary-accent);
+.meet-person-name {
+  font-size: 14px;
+  color: #3c4043;
+}
+
+.meet-message {
+  margin-bottom: 16px;
+}
+
+.meet-message strong {
   display: block;
   font-size: 12px;
+  color: #5f6368;
   margin-bottom: 4px;
 }
 
-.chat-input-container {
-  display: flex;
+.meet-message p {
+  margin: 0;
+  font-size: 14px;
+  color: #3c4043;
+}
+
+.meet-chat-input-area {
   padding: 16px;
+  border-top: 1px solid #dadce0;
+  display: flex;
   gap: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.2);
 }
 
-.chat-input {
+.meet-chat-input-area input {
   flex: 1;
-  padding: 12px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 10px 16px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.05);
-  color: white;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
-.chat-input:focus {
+  border: 1px solid #dadce0;
+  background: #f1f3f4;
   outline: none;
-  background: rgba(255, 255, 255, 0.1);
-  border-color: var(--primary-accent);
 }
 
-.send-btn {
-  padding: 0 20px;
-  background: var(--primary-accent);
-  color: white;
+.meet-chat-input-area input:focus {
+  background: white;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.meet-chat-input-area button {
+  background: transparent;
   border: none;
-  border-radius: 20px;
+  color: #8ab4f8; /* Use Google Blue */
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
 }
 
-.send-btn:hover {
-  background: #0071e3;
-}
-
-/* Modals / Popups */
+/* Popups */
 .popup-overlay {
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(5px);
-  z-index: 10000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
 }
 
 .popup-box {
-  background: rgba(30, 30, 30, 0.85);
-  backdrop-filter: blur(40px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 24px;
-  padding: 40px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-  min-width: 440px;
+  background: white;
+  padding: 24px;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 24px 38px 3px rgba(0,0,0,0.14);
 }
 
 .popup-box h3 {
-  font-size: 24px;
-  font-weight: 700;
-  margin-bottom: 12px;
+  margin-top: 0;
+  color: #202124;
 }
 
 .popup-input {
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 16px;
-  color: white;
-  margin-bottom: 24px;
-}
-
-.popup-input:focus {
-  border-color: var(--primary-accent);
-}
-
-.popup-buttons {
-  gap: 16px;
-}
-
-.popup-confirm-btn, .popup-cancel-btn {
-  padding: 12px 24px;
-  border-radius: 12px;
-  font-weight: 600;
+  width: 100%;
+  padding: 10px;
+  margin: 16px 0;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
 }
 
 .popup-confirm-btn {
-  background: var(--primary-accent);
-}
-
-.popup-cancel-btn {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-/* Settings Window */
-.settings-window {
-  background: rgba(30, 30, 30, 0.9);
-  backdrop-filter: blur(40px);
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.settings-header {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 24px 32px;
-}
-
-.settings-content {
-  padding: 32px;
-}
-
-.settings-footer {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.2);
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .conference-container {
-    padding: 0;
-  }
-  
-  .conference-main {
-    flex-direction: column;
-    gap: 0;
-  }
-  
-  .sidebar {
-    width: 100%;
-    height: 40%;
-    margin: 0;
-    border-radius: 24px 24px 0 0;
-    border-bottom: none;
-  }
-  
-  .video-section {
-    border-radius: 0;
-  }
-  
-  .conference-controls {
-    width: 90%;
-    bottom: 20px;
-    padding: 10px;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    justify-content: flex-start;
-  }
+  background: #1a73e8;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
 }
