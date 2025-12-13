@@ -20,9 +20,16 @@ const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001';
 
 // Icons Component Wrappers with error handling
 const IconImg = ({ src, alt, className }) => {
+  const [imgError, setImgError] = useState(false);
+  
   useEffect(() => {
     console.log(`Loading icon: ${src}`);
   }, [src]);
+  
+  if (imgError) {
+    // Fallback: show text if image fails
+    return <span className={className} style={{ fontSize: '12px', color: 'white' }}>{alt}</span>;
+  }
   
   return (
     <img 
@@ -31,8 +38,7 @@ const IconImg = ({ src, alt, className }) => {
       className={className}
       onError={(e) => {
         console.error(`Failed to load icon: ${src}`);
-        // Don't hide, show alt text instead
-        e.target.alt = alt + ' (icon failed to load)';
+        setImgError(true);
       }}
       onLoad={() => {
         console.log(`Successfully loaded icon: ${src}`);
