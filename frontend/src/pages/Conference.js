@@ -451,19 +451,51 @@ function Conference() {
                       if (videoElement.paused) {
                         console.warn('⚠️ [WebRTC] Video paused after play() resolved, retrying');
                         videoElement.play().catch(() => {});
-                      } else if (!isActuallyPlaying) {
+                      } else if (!isActuallyPlaying && !videoElement._reloading) {
                         // Video says playing but no frames - force reload
                         console.warn('⚠️ [WebRTC] Video playing but no frames (readyState:', videoElement.readyState, 'currentTime:', videoElement.currentTime, '), forcing reload');
+                        videoElement._reloading = true;
                         const currentSrcObject = videoElement.srcObject;
+                        
+                        // Cancel any pending play promises
+                        if (videoElement._playPromise) {
+                          videoElement._playPromise.catch(() => {});
+                          videoElement._playPromise = null;
+                        }
+                        
                         videoElement.srcObject = null;
+                        
                         setTimeout(() => {
                           if (videoElement && currentSrcObject) {
-                            videoElement.srcObject = currentSrcObject;
                             videoElement.setAttribute('autoplay', 'true');
                             videoElement.setAttribute('playsinline', 'true');
-                            videoElement.play().catch(() => {});
+                            videoElement.srcObject = currentSrcObject;
+                            
+                            // Wait for metadata before playing
+                            const handleReloadMetadata = () => {
+                              videoElement.removeEventListener('loadedmetadata', handleReloadMetadata);
+                              if (videoElement.srcObject === currentSrcObject) {
+                                videoElement.play()
+                                  .then(() => {
+                                    console.log('✅ [WebRTC] Video playing after reload');
+                                    videoElement._reloading = false;
+                                  })
+                                  .catch(() => {
+                                    videoElement._reloading = false;
+                                  });
+                              }
+                            };
+                            videoElement.addEventListener('loadedmetadata', handleReloadMetadata, { once: true });
+                            
+                            // Fallback
+                            setTimeout(() => {
+                              if (videoElement._reloading && videoElement.srcObject === currentSrcObject) {
+                                videoElement.play().catch(() => {});
+                                videoElement._reloading = false;
+                              }
+                            }, 1000);
                           }
-                        }, 100);
+                        }, 300);
                       } else {
                         console.log('✅ [WebRTC] Video confirmed playing with frames');
                       }
@@ -635,16 +667,54 @@ function Conference() {
                     clearInterval(pollInterval);
                   } else {
                     // Video says playing but no frames - might need to force reload
-                    if (videoElement.readyState === 0 && pollCount > 3) {
+                    if (videoElement.readyState === 0 && pollCount > 3 && !videoElement._reloading) {
                       console.warn('⚠️ [WebRTC] Video playing but readyState 0, forcing stream reload');
+                      videoElement._reloading = true;
                       const currentSrcObject = videoElement.srcObject;
+                      
+                      // Cancel any pending play promises
+                      if (videoElement._playPromise) {
+                        videoElement._playPromise.catch(() => {});
+                        videoElement._playPromise = null;
+                      }
+                      
                       videoElement.srcObject = null;
+                      
+                      // Wait longer for the element to reset
                       setTimeout(() => {
                         if (videoElement && currentSrcObject) {
+                          videoElement.setAttribute('autoplay', 'true');
+                          videoElement.setAttribute('playsinline', 'true');
                           videoElement.srcObject = currentSrcObject;
-                          videoElement.play().catch(() => {});
+                          
+                          // Wait for loadedmetadata before playing
+                          const handleReloadMetadata = () => {
+                            videoElement.removeEventListener('loadedmetadata', handleReloadMetadata);
+                            if (videoElement.srcObject === currentSrcObject) {
+                              console.log('🔄 [WebRTC] Reloaded stream metadata, attempting play');
+                              videoElement.play()
+                                .then(() => {
+                                  console.log('✅ [WebRTC] Video playing after reload');
+                                  videoElement._reloading = false;
+                                })
+                                .catch(err => {
+                                  console.warn('⚠️ [WebRTC] Play failed after reload:', err.name);
+                                  videoElement._reloading = false;
+                                });
+                            }
+                          };
+                          videoElement.addEventListener('loadedmetadata', handleReloadMetadata, { once: true });
+                          
+                          // Fallback if metadata doesn't load
+                          setTimeout(() => {
+                            if (videoElement._reloading && videoElement.srcObject === currentSrcObject) {
+                              console.log('🔄 [WebRTC] Fallback play after reload timeout');
+                              videoElement.play().catch(() => {});
+                              videoElement._reloading = false;
+                            }
+                          }, 1000);
                         }
-                      }, 100);
+                      }, 300);
                     }
                   }
                 }
