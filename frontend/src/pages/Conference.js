@@ -214,10 +214,79 @@ function Conference() {
     // Handle remote stream
     pc.ontrack = (event) => {
       if (event.streams && event.streams[0]) {
+        const stream = event.streams[0];
         const setVideoStream = (videoElement) => {
-          if (videoElement) {
-            videoElement.srcObject = event.streams[0];
-            videoElement.play().catch(err => console.warn('Error playing remote video:', err));
+          if (!videoElement) return;
+          
+          // Cancel any pending play promise to avoid AbortError
+          if (videoElement._playPromise) {
+            videoElement._playPromise.catch(() => {}); // Suppress errors from cancelled promise
+            videoElement._playPromise = null;
+          }
+          
+          // Set the stream
+          videoElement.srcObject = stream;
+          
+          // Function to safely play the video
+          const playVideo = () => {
+            // Only play if this is still the current stream
+            if (videoElement.srcObject !== stream) return;
+            
+            const playPromise = videoElement.play();
+            if (playPromise !== undefined) {
+              videoElement._playPromise = playPromise;
+              playPromise
+                .then(() => {
+                  if (videoElement._playPromise === playPromise) {
+                    videoElement._playPromise = null;
+                  }
+                })
+                .catch((err) => {
+                  if (videoElement._playPromise === playPromise) {
+                    videoElement._playPromise = null;
+                  }
+                  
+                  // Suppress AbortError - it's expected when stream changes
+                  if (err.name === 'AbortError') {
+                    // Silently ignore - this happens when a new stream is set
+                    return;
+                  }
+                  
+                  // Log other errors
+                  if (err.name !== 'NotAllowedError') {
+                    console.warn('Error playing remote video:', err);
+                  }
+                  
+                  // Retry if video is ready
+                  if (videoElement.srcObject === stream && videoElement.readyState >= 2) {
+                    setTimeout(() => {
+                      if (videoElement && videoElement.srcObject === stream && videoElement.paused) {
+                        videoElement.play().catch(() => {}); // Ignore errors on retry
+                      }
+                    }, 300);
+                  }
+                });
+            }
+          };
+          
+          // Try to play immediately if ready, otherwise wait for canplay event
+          if (videoElement.readyState >= 2) {
+            playVideo();
+          } else {
+            const handleCanPlay = () => {
+              videoElement.removeEventListener('canplay', handleCanPlay);
+              if (videoElement.srcObject === stream) {
+                playVideo();
+              }
+            };
+            videoElement.addEventListener('canplay', handleCanPlay, { once: true });
+            
+            // Fallback: try after a delay
+            setTimeout(() => {
+              if (videoElement.srcObject === stream && videoElement.readyState >= 2 && videoElement.paused) {
+                playVideo();
+              }
+            }, 200);
           }
         };
 
