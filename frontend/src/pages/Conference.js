@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
+import AgoraRTC from 'agora-rtc-sdk-ng';
 import { getCookie, setCookie } from '../utils/cookies';
 import './Conference.css';
 
@@ -12,11 +13,13 @@ const iconPaths = {
   videoOn: '/icons/video-on.png',
   videoOff: '/icons/copy-link.png', // copy-link.png actually contains the crossed camera icon
   screenShare: '/icons/screen-share.png',
+  screenRecord: '/icons/screen-record.png',
   endCall: '/icons/mic-off.png', // mic-off.png actually contains the Decline/End Call icon
   copyLink: '/icons/end-call.png', // end-call.png actually contains the Link icon
 };
 
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001';
+const AGORA_APP_ID = process.env.REACT_APP_AGORA_APP_ID || '';
 
 // Icons Component Wrappers with error handling
 const IconImg = ({ src, alt, className }) => {
@@ -55,16 +58,8 @@ const Icons = {
   VideoOff: () => <IconImg src={iconPaths.videoOff} alt="Video Off" className="control-icon" />,
   ScreenShare: () => <IconImg src={iconPaths.screenShare} alt="Screen Share" className="control-icon" />,
   ScreenShareActive: () => <IconImg src={iconPaths.screenShare} alt="Screen Share Active" className="control-icon active" />,
-  Record: () => (
-    <svg viewBox="0 0 24 24" width="24" height="24" className="control-icon">
-      <circle cx="12" cy="12" r="8" fill="currentColor" />
-    </svg>
-  ),
-  RecordActive: () => (
-    <svg viewBox="0 0 24 24" width="24" height="24" className="control-icon">
-      <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
-    </svg>
-  ),
+  Record: () => <IconImg src={iconPaths.screenRecord} alt="Screen Record" className="control-icon" />,
+  RecordActive: () => <IconImg src={iconPaths.screenRecord} alt="Screen Record Active" className="control-icon active" />,
   CallEnd: () => <IconImg src={iconPaths.endCall} alt="End Call" className="control-icon end-call" />,
   Copy: () => <IconImg src={iconPaths.copyLink} alt="Copy Link" className="control-icon copy-link" />,
   
@@ -104,11 +99,15 @@ function Conference() {
   const socketRef = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideosRef = useRef({});
-  const peerConnectionsRef = useRef({});
   const localStreamRef = useRef(null);
   const screenShareStreamRef = useRef(null);
   const currentSocketIdRef = useRef(null);
   const mediaRecorderRef = useRef(null);
+  const agoraClientRef = useRef(null); // Agora RTC client
+  const localAudioTrackRef = useRef(null);
+  const localVideoTrackRef = useRef(null);
+  const localScreenTrackRef = useRef(null);
+  const remoteUsersRef = useRef({}); // Map socketId -> Agora remote user
 
   // Mobile detection
   useEffect(() => {
@@ -152,25 +151,103 @@ function Conference() {
       currentSocketIdRef.current = socketRef.current.id;
     });
 
-    // Get user media
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      .then(stream => {
+    // Initialize Agora RTC Client
+    if (!AGORA_APP_ID) {
+      console.error('❌ [Agora] AGORA_APP_ID is not set. Please set REACT_APP_AGORA_APP_ID environment variable.');
+      alert('Agora App ID is missing. Please configure REACT_APP_AGORA_APP_ID in your environment variables.');
+      return;
+    }
+
+    agoraClientRef.current = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+    
+    // Set up Agora event handlers
+    agoraClientRef.current.on('user-published', async (user, mediaType) => {
+      console.log('🎥 [Agora] User published:', user.uid, 'mediaType:', mediaType);
+      await agoraClientRef.current.subscribe(user, mediaType);
+      
+      if (mediaType === 'video') {
+        // Find socketId for this Agora UID (we'll use socketId as UID)
+        const socketId = Object.keys(remoteUsersRef.current).find(
+          sid => remoteUsersRef.current[sid]?.uid === user.uid
+        ) || user.uid.toString();
+        
+        const videoElement = remoteVideosRef.current[socketId];
+        if (videoElement) {
+          user.videoTrack.play(videoElement);
+          console.log('✅ [Agora] Playing remote video for:', socketId);
+        } else {
+          console.warn('⚠️ [Agora] Video element not found for:', socketId);
+        }
+      }
+      
+      if (mediaType === 'audio') {
+        user.audioTrack.play();
+        console.log('🔊 [Agora] Playing remote audio for:', user.uid);
+      }
+    });
+
+    agoraClientRef.current.on('user-unpublished', (user, mediaType) => {
+      console.log('👋 [Agora] User unpublished:', user.uid, 'mediaType:', mediaType);
+      if (mediaType === 'video') {
+        const socketId = Object.keys(remoteUsersRef.current).find(
+          sid => remoteUsersRef.current[sid]?.uid === user.uid
+        ) || user.uid.toString();
+        const videoElement = remoteVideosRef.current[socketId];
+        if (videoElement) {
+          user.videoTrack.stop();
+        }
+      }
+    });
+
+    agoraClientRef.current.on('user-left', (user) => {
+      console.log('👋 [Agora] User left:', user.uid);
+      const socketId = Object.keys(remoteUsersRef.current).find(
+        sid => remoteUsersRef.current[sid]?.uid === user.uid
+      );
+      if (socketId) {
+        delete remoteUsersRef.current[socketId];
+      }
+    });
+
+    // Get user media and create Agora tracks
+    AgoraRTC.createMicrophoneAndCameraTracks({}, {})
+      .then(([audioTrack, videoTrack]) => {
+        localAudioTrackRef.current = audioTrack;
+        localVideoTrackRef.current = videoTrack;
+        
+        // Create a MediaStream from Agora tracks for local video display
+        const stream = new MediaStream([audioTrack.getMediaStreamTrack(), videoTrack.getMediaStreamTrack()]);
         localStreamRef.current = stream;
+        
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
 
-        // Initialize mute state based on audio track
-        const audioTracks = stream.getAudioTracks();
-        if (audioTracks.length > 0) {
-          setIsMuted(!audioTracks[0].enabled);
-        }
-
+        // Initialize mute state
+        setIsMuted(!audioTrack.isPlaying);
+        
         // Initialize video state
-        const videoTracks = stream.getVideoTracks();
-        if (videoTracks.length > 0) {
-          setIsVideoOff(!videoTracks[0].enabled);
-        }
+        setIsVideoOff(!videoTrack.isPlaying);
+
+        // Join Agora channel using roomId
+        const uid = socketRef.current?.id || Math.floor(Math.random() * 100000);
+        agoraClientRef.current.join(AGORA_APP_ID, roomId, null, uid)
+          .then(() => {
+            console.log('✅ [Agora] Joined channel:', roomId, 'with UID:', uid);
+            // Publish local tracks
+            return agoraClientRef.current.publish([audioTrack, videoTrack]);
+          })
+          .then(() => {
+            console.log('✅ [Agora] Published local tracks');
+          })
+          .catch(err => {
+            console.error('❌ [Agora] Error joining/publishing:', err);
+          });
+      })
+      .catch(err => {
+        console.error('❌ [Agora] Error creating tracks:', err);
+        alert('Could not access camera/microphone. Please allow permissions.');
+      });
 
         // Join room with name from cookie (or "Caller" if not set)
         const nameToUse = getCookie('userName') || 'Caller';
@@ -181,12 +258,15 @@ function Conference() {
         alert('Could not access camera/microphone. Please allow permissions.');
       });
 
-    // Socket event handlers
-    socketRef.current.on('user-joined', handleUserJoined);
-    socketRef.current.on('existing-users', handleExistingUsers);
-    socketRef.current.on('offer', handleOffer);
-    socketRef.current.on('answer', handleAnswer);
-    socketRef.current.on('ice-candidate', handleIceCandidate);
+    // Socket event handlers (for user list and chat - video handled by Agora)
+    socketRef.current.on('user-joined', ({ socketId, userName }) => {
+      console.log('👤 [Socket] User joined:', { socketId, userName });
+      // Agora handles video automatically, this is just for user list
+    });
+    socketRef.current.on('existing-users', (users) => {
+      console.log('👥 [Socket] Existing users:', users);
+      // Agora handles video automatically, this is just for user list
+    });
     socketRef.current.on('user-left', handleUserLeft);
     socketRef.current.on('user-list', handleUserList);
     socketRef.current.on('chat-message', handleChatMessage);
@@ -199,988 +279,86 @@ function Conference() {
         mediaRecorderRef.current = null;
       }
       
+      // Stop Agora tracks
+      if (localAudioTrackRef.current) {
+        localAudioTrackRef.current.stop();
+        localAudioTrackRef.current.close();
+        localAudioTrackRef.current = null;
+      }
+      if (localVideoTrackRef.current) {
+        localVideoTrackRef.current.stop();
+        localVideoTrackRef.current.close();
+        localVideoTrackRef.current = null;
+      }
+      if (localScreenTrackRef.current) {
+        localScreenTrackRef.current.stop();
+        localScreenTrackRef.current.close();
+        localScreenTrackRef.current = null;
+      }
+      
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(track => track.stop());
       }
       if (screenShareStreamRef.current) {
         screenShareStreamRef.current.getTracks().forEach(track => track.stop());
       }
-      Object.values(peerConnectionsRef.current).forEach(pc => pc.close());
+      
+      // Leave Agora channel
+      if (agoraClientRef.current) {
+        agoraClientRef.current.leave().then(() => {
+          console.log('✅ [Agora] Left channel');
+        }).catch(err => {
+          console.error('❌ [Agora] Error leaving channel:', err);
+        });
+      }
+      
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
     };
   }, [roomId]);
 
-  const createPeerConnection = (socketId) => {
-    console.log('🔌 [WebRTC] Creating peer connection for socketId:', socketId);
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        // ... (Keep existing ICE servers)
-      ],
-      iceCandidatePoolSize: 10
-    });
+  // Note: createPeerConnection removed - Agora handles all connections automatically
 
-    // Add local stream tracks
-    if (localStreamRef.current) {
-      const tracks = localStreamRef.current.getTracks();
-      const videoTrack = tracks.find(t => t.kind === 'video');
-      console.log('📤 [WebRTC] Adding local tracks:', {
-        socketId,
-        videoTracks: tracks.filter(t => t.kind === 'video').length,
-        audioTracks: tracks.filter(t => t.kind === 'audio').length,
-        isScreenSharing: isScreenSharing,
-        videoTrackLabel: videoTrack?.label || 'none'
-      });
-      tracks.forEach(track => {
-        pc.addTrack(track, localStreamRef.current);
-      });
-    } else {
-      console.warn('⚠️ [WebRTC] No local stream available when creating peer connection');
-    }
-
-    // Log connection state changes
-    pc.onconnectionstatechange = () => {
-      console.log('🔌 [WebRTC] Connection state changed:', {
-        socketId,
-        state: pc.connectionState,
-        iceConnectionState: pc.iceConnectionState,
-        iceGatheringState: pc.iceGatheringState
-      });
-      
-      // If connection fails or disconnects but ICE is still connected, try to recover
-      if ((pc.connectionState === 'failed' || pc.connectionState === 'disconnected') && 
-          (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
-        console.log('🔄 [WebRTC] Connection', pc.connectionState, 'but ICE connected - attempting recovery');
-        
-        // Check peer connection statistics - this is critical for diagnosis
-        console.log('📊 [WebRTC] Checking peer connection statistics...');
-        pc.getStats().then(stats => {
-          let hasInboundRTP = false;
-          let hasRemoteInboundRTP = false;
-          
-          stats.forEach(stat => {
-            if (stat.type === 'inbound-rtp' && stat.mediaType === 'video') {
-              hasInboundRTP = true;
-              console.log('📊 [WebRTC] Inbound RTP stats:', {
-                bytesReceived: stat.bytesReceived,
-                packetsReceived: stat.packetsReceived,
-                framesReceived: stat.framesReceived,
-                framesDecoded: stat.framesDecoded,
-                framesDropped: stat.framesDropped,
-                frameWidth: stat.frameWidth,
-                frameHeight: stat.frameHeight,
-                framesPerSecond: stat.framesPerSecond,
-                jitter: stat.jitter,
-                packetsLost: stat.packetsLost
-              });
-            }
-            if (stat.type === 'remote-inbound-rtp' && stat.mediaType === 'video') {
-              hasRemoteInboundRTP = true;
-              console.log('📊 [WebRTC] Remote Inbound RTP stats:', {
-                bytesReceived: stat.bytesReceived,
-                packetsReceived: stat.packetsReceived,
-                jitter: stat.jitter,
-                packetsLost: stat.packetsLost
-              });
-            }
-            if (stat.type === 'transport') {
-              console.log('📊 [WebRTC] Transport stats:', {
-                bytesReceived: stat.bytesReceived,
-                bytesSent: stat.bytesSent,
-                packetsReceived: stat.packetsReceived,
-                packetsSent: stat.packetsSent
-              });
-            }
-          });
-          
-          if (!hasInboundRTP) {
-            console.warn('⚠️ [WebRTC] No inbound RTP stats found - stream may not be receiving data!');
-          }
-        }).catch(err => {
-          console.error('❌ [WebRTC] Error getting stats:', err);
-        });
-        
-        const videoElement = remoteVideosRef.current[socketId];
-        if (videoElement && videoElement.srcObject) {
-          const stream = videoElement.srcObject;
-          const videoTrack = stream.getVideoTracks()[0];
-          if (videoTrack && videoTrack.readyState === 'live') {
-            console.log('🔄 [WebRTC] Video track is live, forcing play');
-            
-            // Check track statistics
-            if (videoTrack.getStats) {
-              videoTrack.getStats().then(stats => {
-                stats.forEach(stat => {
-                  if (stat.type === 'track') {
-                    console.log('📊 [WebRTC] Track stats:', {
-                      frameWidth: stat.frameWidth,
-                      frameHeight: stat.frameHeight,
-                      framesPerSecond: stat.framesPerSecond,
-                      framesSent: stat.framesSent,
-                      framesDropped: stat.framesDropped
-                    });
-                  }
-                });
-              }).catch(() => {});
-            }
-            
-            // Try multiple recovery attempts
-            [500, 1000, 2000].forEach((delay, index) => {
-              setTimeout(() => {
-                if (videoElement && videoElement.srcObject === stream) {
-                  if (videoElement.paused) {
-                    console.log(`🔄 [WebRTC] Recovery play attempt ${index + 1}`);
-                    videoElement.play().then(() => {
-                      console.log('✅ [WebRTC] Recovery play succeeded');
-                    }).catch(err => {
-                      if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
-                        console.warn('⚠️ [WebRTC] Recovery play failed:', err.name);
-                      }
-                    });
-                  } else if (videoElement.readyState === 0) {
-                    // Video playing but no frames - try reload
-                    console.log('🔄 [WebRTC] Video playing but readyState 0, attempting reload');
-                    if (!videoElement._reloading) {
-                      const currentSrcObject = videoElement.srcObject;
-                      videoElement.srcObject = null;
-                      setTimeout(() => {
-                        if (videoElement && currentSrcObject) {
-                          videoElement.srcObject = currentSrcObject;
-                          videoElement.play().catch(() => {});
-                        }
-                      }, 200);
-                    }
-                  }
-                }
-              }, delay);
-            });
-          } else {
-            console.warn('⚠️ [WebRTC] Video track not live:', {
-              hasTrack: !!videoTrack,
-              trackReadyState: videoTrack?.readyState
-            });
-          }
-        }
-      }
-    };
-    
-    pc.oniceconnectionstatechange = () => {
-      console.log('🧊 [WebRTC] ICE connection state:', {
-        socketId,
-        state: pc.iceConnectionState
-      });
-    };
-
-    // Handle remote stream
-    pc.ontrack = (event) => {
-      console.log('🎥 [WebRTC] ontrack event received for socketId:', socketId);
-      console.log('🎥 [WebRTC] Event details:', {
-        streams: event.streams?.length || 0,
-        track: event.track?.kind,
-        trackId: event.track?.id,
-        trackEnabled: event.track?.enabled,
-        trackReadyState: event.track?.readyState
-      });
-      
-      if (event.streams && event.streams[0]) {
-        const stream = event.streams[0];
-        console.log('🎥 [WebRTC] Stream received:', {
-          streamId: stream.id,
-          videoTracks: stream.getVideoTracks().length,
-          audioTracks: stream.getAudioTracks().length,
-          videoTrackId: stream.getVideoTracks()[0]?.id,
-          videoTrackEnabled: stream.getVideoTracks()[0]?.enabled,
-          videoTrackReadyState: stream.getVideoTracks()[0]?.readyState
-        });
-        const setVideoStream = (videoElement) => {
-          if (!videoElement) {
-            console.warn('⚠️ [WebRTC] Video element not found for socketId:', socketId);
-            return;
-          }
-          
-          // Check if element is in DOM and visible
-          const isInDOM = document.contains(videoElement);
-          const isVisible = videoElement.offsetWidth > 0 && videoElement.offsetHeight > 0;
-          const computedStyle = window.getComputedStyle(videoElement);
-          const isDisplayed = computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden';
-          
-          console.log('🎥 [WebRTC] Setting stream on video element:', {
-            socketId,
-            videoElementExists: !!videoElement,
-            currentSrcObject: videoElement.srcObject?.id || 'none',
-            newStreamId: stream.id,
-            videoElementReadyState: videoElement.readyState,
-            videoElementPaused: videoElement.paused,
-            isInDOM,
-            isVisible,
-            isDisplayed,
-            offsetWidth: videoElement.offsetWidth,
-            offsetHeight: videoElement.offsetHeight
-          });
-          
-          if (!isInDOM) {
-            console.warn('⚠️ [WebRTC] Video element not in DOM!');
-          }
-          if (!isVisible || !isDisplayed) {
-            console.warn('⚠️ [WebRTC] Video element not visible! This may prevent stream processing.');
-          }
-          
-          // Cancel any pending play promise to avoid AbortError
-          if (videoElement._playPromise) {
-            videoElement._playPromise.catch(() => {}); // Suppress errors from cancelled promise
-            videoElement._playPromise = null;
-          }
-          
-          // Ensure video element is properly configured before setting stream
-          videoElement.setAttribute('autoplay', 'true');
-          videoElement.setAttribute('playsinline', 'true');
-          videoElement.playsInline = true;
-          videoElement.autoplay = true;
-          
-          // Set the stream
-          videoElement.srcObject = stream;
-          
-          // Force the video element to process the stream
-          // For WebRTC streams, we need to ensure the element is ready
-          const streamVideoTrack = stream.getVideoTracks()[0];
-          if (streamVideoTrack) {
-            console.log('🎥 [WebRTC] Video track details:', {
-              id: streamVideoTrack.id,
-              enabled: streamVideoTrack.enabled,
-              readyState: streamVideoTrack.readyState,
-              muted: streamVideoTrack.muted,
-              label: streamVideoTrack.label,
-              kind: streamVideoTrack.kind
-            });
-            
-            // Ensure track is enabled
-            if (!streamVideoTrack.enabled) {
-              console.warn('⚠️ [WebRTC] Video track is disabled, enabling it');
-              streamVideoTrack.enabled = true;
-            }
-          }
-          
-          console.log('🎥 [WebRTC] Stream set, readyState:', videoElement.readyState, {
-            autoplay: videoElement.autoplay,
-            playsInline: videoElement.playsInline,
-            muted: videoElement.muted,
-            streamId: stream.id,
-            hasVideoTracks: stream.getVideoTracks().length,
-            hasAudioTracks: stream.getAudioTracks().length,
-            videoTrackEnabled: streamVideoTrack?.enabled,
-            videoTrackReadyState: streamVideoTrack?.readyState
-          });
-          
-          // Try to force processing by checking stream active state
-          setTimeout(() => {
-            if (videoElement.srcObject === stream && videoElement.readyState === 0) {
-              const activeTrack = stream.getVideoTracks()[0];
-              if (activeTrack && activeTrack.readyState === 'live') {
-                console.log('🔄 [WebRTC] Stream active but readyState still 0, attempting direct play');
-                
-                // Check track statistics to verify it's actually sending data
-                if (activeTrack.getStats) {
-                  activeTrack.getStats().then(stats => {
-                    stats.forEach(stat => {
-                      if (stat.type === 'track') {
-                        console.log('📊 [WebRTC] Track stats:', {
-                          frameWidth: stat.frameWidth,
-                          frameHeight: stat.frameHeight,
-                          framesPerSecond: stat.framesPerSecond,
-                          framesSent: stat.framesSent,
-                          framesDropped: stat.framesDropped
-                        });
-                      }
-                    });
-                  }).catch(() => {});
-                }
-                
-                // Try playing directly without waiting
-                videoElement.play().catch(err => {
-                  if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
-                    console.warn('⚠️ [WebRTC] Direct play failed:', err.name);
-                  }
-                });
-              }
-            }
-          }, 100);
-          
-          // Aggressively wait for loadedmetadata - this is critical for WebRTC streams
-          const waitForMetadata = () => {
-            if (videoElement.srcObject === stream) {
-              if (videoElement.readyState >= 1) {
-                console.log('✅ [WebRTC] Metadata loaded, readyState:', videoElement.readyState);
-                // Try to play once metadata is loaded
-                if (videoElement.paused) {
-                  videoElement.play().catch(() => {});
-                }
-              } else {
-                // Still 0, wait a bit more
-                setTimeout(waitForMetadata, 200);
-              }
-            }
-          };
-          
-          // Start waiting for metadata
-          const handleMetadata = () => {
-            console.log('✅ [WebRTC] loadedmetadata event fired, readyState:', videoElement.readyState);
-            waitForMetadata();
-          };
-          videoElement.addEventListener('loadedmetadata', handleMetadata, { once: true });
-          
-          // Fallback: start checking after a short delay
-          setTimeout(waitForMetadata, 200);
-          
-          // Function to safely play the video
-          const playVideo = () => {
-            // Only play if this is still the current stream
-            if (videoElement.srcObject !== stream) {
-              console.warn('⚠️ [WebRTC] Stream changed, not playing');
-              return;
-            }
-            
-            console.log('🎥 [WebRTC] Attempting to play video:', {
-              socketId,
-              readyState: videoElement.readyState,
-              paused: videoElement.paused,
-              hasTracks: stream.getVideoTracks().length > 0
-            });
-            
-            // Add playing event listener to confirm video actually starts
-            const handlePlaying = () => {
-              console.log('✅ [WebRTC] Video is actually playing now for socketId:', socketId, {
-                readyState: videoElement.readyState,
-                paused: videoElement.paused,
-                currentTime: videoElement.currentTime
-              });
-              videoElement.removeEventListener('playing', handlePlaying);
-            };
-            videoElement.addEventListener('playing', handlePlaying, { once: true });
-            
-            // Also listen for loadedmetadata which indicates the video element has processed the stream
-            const handleLoadedMetadata = () => {
-              console.log('✅ [WebRTC] Video metadata loaded, readyState:', videoElement.readyState);
-              videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
-            };
-            videoElement.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
-            
-            // Force autoplay and playsInline attributes
-            videoElement.setAttribute('autoplay', 'true');
-            videoElement.setAttribute('playsinline', 'true');
-            
-            // Try muted first if readyState is 0 - browsers often block unmuted autoplay
-            const shouldTryMuted = videoElement.readyState === 0;
-            if (shouldTryMuted) {
-              console.log('🔇 [WebRTC] readyState is 0, trying muted playback first');
-              videoElement.muted = true;
-            } else {
-              videoElement.muted = false;
-            }
-            
-            console.log('🎥 [WebRTC] Video element attributes:', {
-              autoplay: videoElement.autoplay,
-              playsInline: videoElement.playsInline,
-              muted: videoElement.muted,
-              srcObject: !!videoElement.srcObject,
-              readyState: videoElement.readyState
-            });
-            
-            const playPromise = videoElement.play();
-            if (playPromise !== undefined) {
-              videoElement._playPromise = playPromise;
-              
-              // Add timeout to detect if promise hangs
-              const playTimeout = setTimeout(() => {
-                if (videoElement._playPromise === playPromise) {
-                  console.warn('⏱️ [WebRTC] play() promise timeout - checking video state');
-                  console.log('⏱️ [WebRTC] Video state:', {
-                    paused: videoElement.paused,
-                    readyState: videoElement.readyState,
-                    currentTime: videoElement.currentTime,
-                    ended: videoElement.ended,
-                    videoWidth: videoElement.videoWidth,
-                    videoHeight: videoElement.videoHeight
-                  });
-                  
-                  // Check if video is actually showing frames
-                  const isActuallyPlaying = !videoElement.paused && 
-                                          videoElement.readyState >= 2 && 
-                                          videoElement.currentTime > 0;
-                  
-                  if (!isActuallyPlaying && videoElement.srcObject === stream) {
-                    // Video says it's playing but not actually showing frames
-                    if (!videoElement.paused && videoElement.readyState === 0) {
-                      console.warn('⚠️ [WebRTC] Video marked as playing but readyState is 0 - forcing reload');
-                      // Try to force the video element to process the stream
-                      const currentSrcObject = videoElement.srcObject;
-                      videoElement.srcObject = null;
-                      setTimeout(() => {
-                        if (videoElement && currentSrcObject) {
-                          videoElement.srcObject = currentSrcObject;
-                          videoElement.play().catch(() => {});
-                        }
-                      }, 100);
-                    } else if (videoElement.paused) {
-                      console.log('🔄 [WebRTC] Retrying play after timeout');
-                      videoElement.play().catch(err => {
-                        console.warn('❌ [WebRTC] Retry play error:', err);
-                      });
-                    }
-                  }
-                }
-              }, 2000);
-              
-              playPromise
-                .then(() => {
-                  clearTimeout(playTimeout);
-                  if (videoElement._playPromise === playPromise) {
-                    videoElement._playPromise = null;
-                  }
-                  console.log('✅ [WebRTC] play() promise resolved for socketId:', socketId, {
-                    paused: videoElement.paused,
-                    readyState: videoElement.readyState,
-                    currentTime: videoElement.currentTime
-                  });
-                  
-                  // Check if actually playing after a short delay
-                  setTimeout(() => {
-                    if (videoElement && videoElement.srcObject === stream) {
-                      const isActuallyPlaying = !videoElement.paused && 
-                                              videoElement.readyState >= 2 && 
-                                              videoElement.currentTime > 0;
-                      
-                      if (videoElement.paused) {
-                        console.warn('⚠️ [WebRTC] Video paused after play() resolved, retrying');
-                        videoElement.play().catch(() => {});
-                      } else if (!isActuallyPlaying && !videoElement._reloading) {
-                        // Video says playing but no frames - force reload
-                        console.warn('⚠️ [WebRTC] Video playing but no frames (readyState:', videoElement.readyState, 'currentTime:', videoElement.currentTime, '), forcing reload');
-                        videoElement._reloading = true;
-                        const currentSrcObject = videoElement.srcObject;
-                        
-                        // Cancel any pending play promises
-                        if (videoElement._playPromise) {
-                          videoElement._playPromise.catch(() => {});
-                          videoElement._playPromise = null;
-                        }
-                        
-                        videoElement.srcObject = null;
-                        
-                        setTimeout(() => {
-                          if (videoElement && currentSrcObject) {
-                            videoElement.setAttribute('autoplay', 'true');
-                            videoElement.setAttribute('playsinline', 'true');
-                            videoElement.srcObject = currentSrcObject;
-                            
-                            // Wait for metadata before playing
-                            const handleReloadMetadata = () => {
-                              videoElement.removeEventListener('loadedmetadata', handleReloadMetadata);
-                              if (videoElement.srcObject === currentSrcObject) {
-                                videoElement.play()
-                                  .then(() => {
-                                    console.log('✅ [WebRTC] Video playing after reload');
-                                    videoElement._reloading = false;
-                                  })
-                                  .catch(() => {
-                                    videoElement._reloading = false;
-                                  });
-                              }
-                            };
-                            videoElement.addEventListener('loadedmetadata', handleReloadMetadata, { once: true });
-                            
-                            // Fallback
-                            setTimeout(() => {
-                              if (videoElement._reloading && videoElement.srcObject === currentSrcObject) {
-                                videoElement.play().catch(() => {});
-                                videoElement._reloading = false;
-                              }
-                            }, 1000);
-                          }
-                        }, 300);
-                      } else {
-                        console.log('✅ [WebRTC] Video confirmed playing with frames');
-                      }
-                    }
-                  }, 500);
-                })
-                .catch((err) => {
-                  clearTimeout(playTimeout);
-                  if (videoElement._playPromise === playPromise) {
-                    videoElement._playPromise = null;
-                  }
-                  
-                  console.log('❌ [WebRTC] play() promise rejected:', {
-                    name: err.name,
-                    message: err.message,
-                    paused: videoElement.paused,
-                    readyState: videoElement.readyState
-                  });
-                  
-                  // Suppress AbortError - it's expected when stream changes
-                  if (err.name === 'AbortError') {
-                    console.log('⚠️ [WebRTC] Play aborted (expected when stream changes)');
-                    // Try again after a short delay
-                    setTimeout(() => {
-                      if (videoElement && videoElement.srcObject === stream && videoElement.paused) {
-                        console.log('🔄 [WebRTC] Retrying play after AbortError');
-                        videoElement.play().catch(() => {});
-                      }
-                    }, 200);
-                    return;
-                  }
-                  
-                  // For NotAllowedError, try with muted (if not already muted)
-                  if (err.name === 'NotAllowedError') {
-                    if (!videoElement.muted) {
-                      console.log('🔇 [WebRTC] Play not allowed, trying muted');
-                      videoElement.muted = true;
-                      setTimeout(() => {
-                        if (videoElement && videoElement.srcObject === stream && videoElement.paused) {
-                          videoElement.play()
-                            .then(() => {
-                              console.log('✅ [WebRTC] Video playing muted');
-                              // Try to unmute after a moment
-                              setTimeout(() => {
-                                if (videoElement && videoElement.srcObject === stream) {
-                                  videoElement.muted = false;
-                                }
-                              }, 1000);
-                            })
-                            .catch(() => {});
-                        }
-                      }, 100);
-                    } else {
-                      console.warn('⚠️ [WebRTC] Play not allowed even with muted');
-                    }
-                    return;
-                  }
-                  
-                  // If readyState is 0 and we got an error, the stream might not be processing
-                  // Try to force reload the stream
-                  if (videoElement.readyState === 0 && err.name !== 'AbortError') {
-                    console.log('🔄 [WebRTC] readyState 0 with error, will try reload after delay');
-                    setTimeout(() => {
-                      if (videoElement && videoElement.srcObject === stream && videoElement.readyState === 0 && !videoElement._reloading) {
-                        console.log('🔄 [WebRTC] Attempting stream reload due to readyState 0');
-                        videoElement._reloading = true;
-                        const currentSrcObject = videoElement.srcObject;
-                        videoElement.srcObject = null;
-                        setTimeout(() => {
-                          if (videoElement && currentSrcObject) {
-                            videoElement.setAttribute('autoplay', 'true');
-                            videoElement.setAttribute('playsinline', 'true');
-                            videoElement.muted = true; // Start muted
-                            videoElement.srcObject = currentSrcObject;
-                            videoElement.play()
-                              .then(() => {
-                                console.log('✅ [WebRTC] Video playing after reload');
-                                videoElement._reloading = false;
-                                // Try unmuting after a moment
-                                setTimeout(() => {
-                                  if (videoElement && videoElement.srcObject === currentSrcObject) {
-                                    videoElement.muted = false;
-                                  }
-                                }, 1000);
-                              })
-                              .catch(() => {
-                                videoElement._reloading = false;
-                              });
-                          }
-                        }, 300);
-                      }
-                    }, 1000);
-                  }
-                  
-                  // Log other errors
-                  console.warn('❌ [WebRTC] Error playing remote video:', err);
-                  
-                  // Retry if video is ready or track is live
-                  const currentTrack = stream.getVideoTracks()[0];
-                  const trackLive = currentTrack && currentTrack.readyState === 'live';
-                  if (videoElement.srcObject === stream && (videoElement.readyState >= 2 || trackLive)) {
-                    setTimeout(() => {
-                      if (videoElement && videoElement.srcObject === stream && videoElement.paused) {
-                        console.log('🔄 [WebRTC] Retrying play, readyState:', videoElement.readyState, 'trackLive:', trackLive);
-                        videoElement.play().catch(() => {}); // Ignore errors on retry
-                      }
-                    }, 500);
-                  }
-                });
-            } else {
-              console.warn('⚠️ [WebRTC] play() returned undefined');
-              // If play() returns undefined, try direct play
-              setTimeout(() => {
-                if (videoElement && videoElement.srcObject === stream && videoElement.paused) {
-                  console.log('🔄 [WebRTC] Direct play attempt');
-                  videoElement.play().catch(() => {});
-                }
-              }, 100);
-            }
-          };
-          
-          // Check if video track is live - for WebRTC, this is more reliable than readyState
-          const videoTrack = stream.getVideoTracks()[0];
-          const isTrackLive = videoTrack && videoTrack.readyState === 'live';
-          
-          // Try to play immediately if ready, otherwise wait for canplay event
-          if (videoElement.readyState >= 2) {
-            console.log('🎥 [WebRTC] Video ready (readyState >= 2), attempting play');
-            playVideo();
-          } else if (isTrackLive) {
-            // Track is live but readyState is 0 - wait a bit for video element to process
-            console.log('🎥 [WebRTC] Track is live but readyState is 0, waiting for video element to process');
-            
-            // Listen for loadedmetadata event which indicates stream processing started
-            const handleLoadedMetadata = () => {
-              console.log('✅ [WebRTC] Metadata loaded, readyState:', videoElement.readyState);
-              if (videoElement.srcObject === stream) {
-                playVideo();
-              }
-            };
-            videoElement.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
-            
-            // Also listen for loadeddata
-            const handleLoadedData = () => {
-              console.log('✅ [WebRTC] Data loaded, readyState:', videoElement.readyState);
-              if (videoElement.srcObject === stream && videoElement.paused) {
-                playVideo();
-              }
-            };
-            videoElement.addEventListener('loadeddata', handleLoadedData, { once: true });
-            
-            // Wait a short time for the video element to start processing the stream
-            setTimeout(() => {
-              if (videoElement.srcObject === stream) {
-                if (videoElement.readyState > 0) {
-                  console.log('✅ [WebRTC] Video readyState changed, attempting play');
-                  playVideo();
-                } else {
-                  // Still 0, but track is live - try playing anyway
-                  console.log('🔄 [WebRTC] readyState still 0 but track live, attempting forced play');
-                  playVideo();
-                }
-              }
-            }, 300);
-            
-            // Additional fallback - try again after longer delay
-            setTimeout(() => {
-              if (videoElement && videoElement.srcObject === stream && videoElement.paused) {
-                const trackStillLive = stream.getVideoTracks()[0]?.readyState === 'live';
-                if (trackStillLive) {
-                  console.log('🔄 [WebRTC] Delayed fallback play attempt, readyState:', videoElement.readyState);
-                  playVideo();
-                }
-              }
-            }, 1000);
-            
-            // Aggressive polling fallback - check every 500ms and try to play
-            let pollCount = 0;
-            const maxPolls = 10; // Try for 5 seconds
-            const pollInterval = setInterval(() => {
-              pollCount++;
-              if (pollCount > maxPolls) {
-                clearInterval(pollInterval);
-                console.log('⏱️ [WebRTC] Stopped polling for playback');
-                return;
-              }
-              
-              if (videoElement && videoElement.srcObject === stream) {
-                const track = stream.getVideoTracks()[0];
-                const trackLive = track && track.readyState === 'live';
-                
-                if (trackLive && videoElement.paused) {
-                  console.log(`🔄 [WebRTC] Polling attempt ${pollCount}/${maxPolls}, readyState:`, videoElement.readyState);
-                  videoElement.play()
-                    .then(() => {
-                      console.log('✅ [WebRTC] Video started via polling');
-                      clearInterval(pollInterval);
-                    })
-                    .catch(err => {
-                      if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
-                        console.warn(`⚠️ [WebRTC] Polling play error (attempt ${pollCount}):`, err.name);
-                      }
-                    });
-                } else if (!videoElement.paused) {
-                  // Check if actually playing (has frames)
-                  const isActuallyPlaying = videoElement.readyState >= 2 && videoElement.currentTime > 0;
-                  if (isActuallyPlaying) {
-                    console.log('✅ [WebRTC] Video is playing with frames, stopping poll');
-                    clearInterval(pollInterval);
-                  } else {
-                    // Video says playing but no frames - might need to force reload
-                    if (videoElement.readyState === 0 && pollCount > 3 && !videoElement._reloading) {
-                      console.warn('⚠️ [WebRTC] Video playing but readyState 0, forcing stream reload');
-                      videoElement._reloading = true;
-                      const currentSrcObject = videoElement.srcObject;
-                      
-                      // Cancel any pending play promises
-                      if (videoElement._playPromise) {
-                        videoElement._playPromise.catch(() => {});
-                        videoElement._playPromise = null;
-                      }
-                      
-                      videoElement.srcObject = null;
-                      
-                      // Wait longer for the element to reset
-                      setTimeout(() => {
-                        if (videoElement && currentSrcObject) {
-                          videoElement.setAttribute('autoplay', 'true');
-                          videoElement.setAttribute('playsinline', 'true');
-                          videoElement.srcObject = currentSrcObject;
-                          
-                          // Wait for loadedmetadata before playing
-                          const handleReloadMetadata = () => {
-                            videoElement.removeEventListener('loadedmetadata', handleReloadMetadata);
-                            if (videoElement.srcObject === currentSrcObject) {
-                              console.log('🔄 [WebRTC] Reloaded stream metadata, attempting play');
-                              videoElement.play()
-                                .then(() => {
-                                  console.log('✅ [WebRTC] Video playing after reload');
-                                  videoElement._reloading = false;
-                                })
-                                .catch(err => {
-                                  console.warn('⚠️ [WebRTC] Play failed after reload:', err.name);
-                                  videoElement._reloading = false;
-                                });
-                            }
-                          };
-                          videoElement.addEventListener('loadedmetadata', handleReloadMetadata, { once: true });
-                          
-                          // Fallback if metadata doesn't load
-                          setTimeout(() => {
-                            if (videoElement._reloading && videoElement.srcObject === currentSrcObject) {
-                              console.log('🔄 [WebRTC] Fallback play after reload timeout');
-                              videoElement.play().catch(() => {});
-                              videoElement._reloading = false;
-                            }
-                          }, 1000);
-                        }
-                      }, 300);
-                    }
-                  }
-                }
-              } else {
-                clearInterval(pollInterval);
-              }
-            }, 500);
-          } else {
-            console.log('⏳ [WebRTC] Waiting for video to be ready, readyState:', videoElement.readyState);
-            const handleCanPlay = () => {
-              videoElement.removeEventListener('canplay', handleCanPlay);
-              if (videoElement.srcObject === stream) {
-                console.log('✅ [WebRTC] canplay event fired');
-                playVideo();
-              }
-            };
-            videoElement.addEventListener('canplay', handleCanPlay, { once: true });
-            
-            // Also listen for track becoming live
-            if (videoTrack) {
-              const handleTrackStarted = () => {
-                console.log('✅ [WebRTC] Video track started');
-                if (videoElement.srcObject === stream && videoElement.paused) {
-                  playVideo();
-                }
-              };
-              if (videoTrack.readyState === 'live') {
-                handleTrackStarted();
-              } else {
-                videoTrack.addEventListener('started', handleTrackStarted, { once: true });
-              }
-            }
-            
-            // Fallback: try after delays
-            setTimeout(() => {
-              if (videoElement.srcObject === stream) {
-                const trackNowLive = stream.getVideoTracks()[0]?.readyState === 'live';
-                if ((videoElement.readyState >= 2 || trackNowLive) && videoElement.paused) {
-                  console.log('🔄 [WebRTC] Fallback play attempt');
-                  playVideo();
-                }
-              }
-            }, 500);
-            
-            // More aggressive fallback - try playing even with readyState 0 if track is live
-            setTimeout(() => {
-              if (videoElement.srcObject === stream) {
-                const trackNowLive = stream.getVideoTracks()[0]?.readyState === 'live';
-                if (trackNowLive && videoElement.paused) {
-                  console.log('🔄 [WebRTC] Aggressive fallback - track is live, forcing play');
-                  playVideo();
-                }
-              }
-            }, 1000);
-          }
-        };
-
-        let videoElement = remoteVideosRef.current[socketId];
-        console.log('🎥 [WebRTC] Looking for video element:', {
-          socketId,
-          videoElementFound: !!videoElement,
-          allRemoteVideos: Object.keys(remoteVideosRef.current)
-        });
-        
-        if (videoElement) {
-          console.log('✅ [WebRTC] Video element found immediately');
-          setVideoStream(videoElement);
-        } else {
-          console.log('⏳ [WebRTC] Video element not found, retrying...');
-          let retries = 0;
-          const retryInterval = setInterval(() => {
-            videoElement = remoteVideosRef.current[socketId];
-            if (videoElement) {
-              console.log('✅ [WebRTC] Video element found after retry, attempt:', retries);
-              setVideoStream(videoElement);
-              clearInterval(retryInterval);
-            } else if (retries >= 20) {
-              console.error('❌ [WebRTC] Video element not found after 20 retries for socketId:', socketId);
-              console.log('Available video elements:', Object.keys(remoteVideosRef.current));
-              clearInterval(retryInterval);
-            }
-            retries++;
-          }, 100);
-        }
-      }
-    };
-
-    // Handle ICE candidates
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        console.log('🧊 [WebRTC] ICE candidate for socketId:', socketId);
-        socketRef.current.emit('ice-candidate', {
-          target: socketId,
-          candidate: event.candidate
-        });
-      } else {
-        console.log('🧊 [WebRTC] ICE gathering complete for socketId:', socketId);
-      }
-    };
-
-    return pc;
-  };
-
-  const handleUserJoined = async ({ socketId, userName: name }) => {
-    console.log('👤 [WebRTC] User joined:', { socketId, userName: name });
-    let pc = peerConnectionsRef.current[socketId];
-    if (!pc || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
-      console.log('🔌 [WebRTC] Creating new peer connection for:', socketId);
-      pc = createPeerConnection(socketId);
-      peerConnectionsRef.current[socketId] = pc;
-    }
-    if (pc.signalingState === 'stable') {
-      try {
-        console.log('📤 [WebRTC] Creating offer for:', socketId);
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        socketRef.current.emit('offer', { target: socketId, offer: offer });
-        console.log('✅ [WebRTC] Offer sent to:', socketId);
-      } catch (error) {
-        console.error('❌ [WebRTC] Error creating offer:', error);
-      }
-    } else {
-      console.log('⚠️ [WebRTC] Signaling state not stable:', pc.signalingState);
-    }
-  };
-
-  const handleExistingUsers = async (users) => {
-    console.log('👥 [WebRTC] Existing users:', users.map(u => ({ socketId: u.socketId, userName: u.userName })));
-    for (const user of users) {
-      let pc = peerConnectionsRef.current[user.socketId];
-      if (!pc || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
-        console.log('🔌 [WebRTC] Creating peer connection for existing user:', user.socketId);
-        pc = createPeerConnection(user.socketId);
-        peerConnectionsRef.current[user.socketId] = pc;
-      }
-      if (pc.signalingState === 'stable') {
-        try {
-          console.log('📤 [WebRTC] Creating offer for existing user:', user.socketId);
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          socketRef.current.emit('offer', { target: user.socketId, offer: offer });
-          console.log('✅ [WebRTC] Offer sent to existing user:', user.socketId);
-        } catch (error) {
-          console.error('❌ [WebRTC] Error creating offer for existing user:', error);
-        }
-      } else {
-        console.log('⚠️ [WebRTC] Signaling state not stable for:', user.socketId, pc.signalingState);
-      }
-    }
-  };
-
-  const handleOffer = async ({ offer, sender }) => {
-    console.log('📥 [WebRTC] Received offer from:', sender);
-    let pc = peerConnectionsRef.current[sender];
-    if (!pc || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
-      console.log('🔌 [WebRTC] Creating peer connection for offer sender:', sender);
-      pc = createPeerConnection(sender);
-      peerConnectionsRef.current[sender] = pc;
-    }
-    if (pc.signalingState === 'stable' || pc.signalingState === 'have-local-offer') {
-      try {
-        console.log('📥 [WebRTC] Setting remote description and creating answer');
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        socketRef.current.emit('answer', { target: sender, answer: answer });
-        console.log('✅ [WebRTC] Answer sent to:', sender);
-      } catch (error) {
-        console.error('❌ [WebRTC] Error handling offer:', error);
-      }
-    } else {
-      console.log('⚠️ [WebRTC] Signaling state not ready for offer:', pc.signalingState);
-    }
-  };
-
-  const handleAnswer = async ({ answer, sender }) => {
-    console.log('📥 [WebRTC] Received answer from:', sender);
-    const pc = peerConnectionsRef.current[sender];
-    if (pc) {
-      // Only set answer if we're in the correct state
-      if (pc.signalingState === 'have-local-offer') {
-        try {
-          console.log('📥 [WebRTC] Setting remote answer');
-          await pc.setRemoteDescription(new RTCSessionDescription(answer));
-          console.log('✅ [WebRTC] Remote answer set successfully');
-        } catch (error) {
-          console.error('❌ [WebRTC] Error setting remote answer:', error);
-        }
-      } else if (pc.signalingState === 'stable') {
-        // Answer already set or connection has progressed - this is okay
-        console.log('✅ [WebRTC] Answer already processed or connection established, state:', pc.signalingState);
-      } else {
-        console.warn('⚠️ [WebRTC] Cannot set answer - wrong signaling state:', pc.signalingState);
-      }
-    } else {
-      console.warn('⚠️ [WebRTC] Cannot set answer - no peer connection found');
-    }
-  };
-
-  const handleIceCandidate = async ({ candidate, sender }) => {
-    const pc = peerConnectionsRef.current[sender];
-    if (pc && candidate) {
-      try {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        console.log('🧊 [WebRTC] ICE candidate added for:', sender);
-      } catch (error) {
-        if (error.name !== 'OperationError') {
-          console.error('❌ [WebRTC] Error adding ICE candidate:', error);
-        }
-      }
-    } else {
-      console.warn('⚠️ [WebRTC] Cannot add ICE candidate - no PC or no candidate:', {
-        hasPC: !!pc,
-        hasCandidate: !!candidate
-      });
-    }
-  };
+  // Note: handleUserJoined and handleExistingUsers are no longer needed
+  // Agora automatically handles all users in the channel through event handlers
 
   const handleUserLeft = (socketId) => {
-    if (peerConnectionsRef.current[socketId]) {
-      peerConnectionsRef.current[socketId].close();
-      delete peerConnectionsRef.current[socketId];
+    console.log('👋 [Socket] User left:', socketId);
+    // Agora handles video cleanup automatically through user-left event
+    // Just clean up local references
+    delete remoteUsersRef.current[socketId];
+    if (remoteVideosRef.current[socketId]) {
+      remoteVideosRef.current[socketId].srcObject = null;
     }
+  };
+
+  const handleUserList = (userList) => {
+    const currentSocketId = currentSocketIdRef.current || socketRef.current?.id;
+    const otherUsers = userList.filter(user => user.socketId !== currentSocketId);
+    setUsers(otherUsers);
+    
+    otherUsers.forEach(user => {
+      if (!remoteVideosRef.current[user.socketId]) {
+        const video = document.createElement('video');
+        video.autoplay = true;
+        video.playsInline = true;
+        video.className = 'meet-remote-video';
+        remoteVideosRef.current[user.socketId] = video;
+      }
+    });
+  };
+  // Note: handleUserJoined and handleExistingUsers are no longer needed
+  // Agora automatically handles all users in the channel through event handlers
+
+  // Note: handleOffer, handleAnswer, handleIceCandidate are no longer needed
+  // Agora handles offer/answer/ICE candidate exchange automatically
+
+  const handleUserLeft = (socketId) => {
+    console.log('👋 [Socket] User left:', socketId);
+    // Agora handles video cleanup automatically through user-left event
+    // Just clean up local references
+    delete remoteUsersRef.current[socketId];
     if (remoteVideosRef.current[socketId]) {
       remoteVideosRef.current[socketId].srcObject = null;
     }
@@ -1217,43 +395,36 @@ function Conference() {
   };
 
   const toggleMute = () => {
-    if (localStreamRef.current) {
-      const audioTracks = localStreamRef.current.getAudioTracks();
-      if (audioTracks.length > 0) {
-        const newMutedState = !isMuted;
-        audioTracks.forEach(track => { track.enabled = !newMutedState; });
-        setIsMuted(newMutedState);
-        
-        Object.values(peerConnectionsRef.current).forEach(pc => {
-          pc.getSenders().forEach(sender => {
-            if (sender.track && sender.track.kind === 'audio') {
-              sender.track.enabled = !newMutedState;
-            }
-          });
-        });
+    if (localAudioTrackRef.current) {
+      const newMutedState = !isMuted;
+      if (newMutedState) {
+        localAudioTrackRef.current.setEnabled(false);
+      } else {
+        localAudioTrackRef.current.setEnabled(true);
       }
+      setIsMuted(newMutedState);
+      console.log('🔇 [Agora] Mute toggled:', newMutedState);
     }
   };
 
   const toggleVideo = () => {
-    if (localStreamRef.current) {
-      const videoTracks = localStreamRef.current.getVideoTracks();
-      if (videoTracks.length > 0) {
-        const newVideoState = !isVideoOff;
-        videoTracks.forEach(track => { track.enabled = !newVideoState; });
-        setIsVideoOff(newVideoState);
-        
-        // We don't need to update peer connections for video track enabled/disabled, 
-        // WebRTC handles black frames automatically, but we can if needed.
+    if (localVideoTrackRef.current) {
+      const newVideoState = !isVideoOff;
+      if (newVideoState) {
+        localVideoTrackRef.current.setEnabled(false);
+      } else {
+        localVideoTrackRef.current.setEnabled(true);
       }
+      setIsVideoOff(newVideoState);
+      console.log('📹 [Agora] Video toggled:', !newVideoState);
     }
   };
 
   const toggleScreenShare = async () => {
     try {
       if (isScreenSharing) {
-        // Stop screen sharing
-        console.log('🛑 [ScreenShare] Stopping screen share');
+        // Stop screen sharing and switch back to camera
+        console.log('🛑 [Agora ScreenShare] Stopping screen share');
         
         if (screenShareStreamRef.current) {
           screenShareStreamRef.current.getTracks().forEach(track => {
@@ -1273,135 +444,69 @@ function Conference() {
         const currentAudioTrack = localStreamRef.current.getAudioTracks()[0];
         const wasAudioEnabled = currentAudioTrack && currentAudioTrack.enabled;
 
-        // Get new camera video track
-        const cameraStream = await navigator.mediaDevices.getUserMedia({ 
-          video: true, 
-          audio: !isMuted && wasAudioEnabled
-        });
+        // Create new camera video track with Agora
+        const cameraVideoTrack = await AgoraRTC.createCameraVideoTrack();
+        localVideoTrackRef.current = cameraVideoTrack;
         
-        const videoTrack = cameraStream.getVideoTracks()[0];
-        const audioTrack = cameraStream.getAudioTracks()[0];
+        // Publish new camera track
+        await agoraClientRef.current.publish([cameraVideoTrack]);
         
-        console.log('📹 [ScreenShare] Switching back to camera:', {
-          hasVideo: !!videoTrack,
-          hasAudio: !!audioTrack
-        });
-        
-        // Replace video track in all peer connections
-        Object.values(peerConnectionsRef.current).forEach(pc => {
-          const videoSender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-          if (videoSender) {
-            videoSender.replaceTrack(videoTrack);
-            console.log('🔄 [ScreenShare] Replaced video track in peer connection');
-          }
-        });
-
-        // Update local stream
-        if (localStreamRef.current) {
-          const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
-          if (oldVideoTrack) {
-            localStreamRef.current.removeTrack(oldVideoTrack);
-            oldVideoTrack.stop();
-          }
-          localStreamRef.current.addTrack(videoTrack);
-          
-          // Handle audio: use new audio track if available, otherwise keep existing
-          if (audioTrack) {
-            const oldAudioTrack = localStreamRef.current.getAudioTracks()[0];
-            if (oldAudioTrack) {
-              localStreamRef.current.removeTrack(oldAudioTrack);
-              oldAudioTrack.stop();
-            }
-            localStreamRef.current.addTrack(audioTrack);
-          }
-        } else {
-          localStreamRef.current = cameraStream;
-        }
-
+        // Update local video display
         if (localVideoRef.current) {
-          localVideoRef.current.srcObject = localStreamRef.current;
+          cameraVideoTrack.play(localVideoRef.current);
         }
+        
+        // Update local stream for MediaRecorder compatibility
+        const stream = new MediaStream([cameraVideoTrack.getMediaStreamTrack()]);
+        if (localAudioTrackRef.current) {
+          stream.addTrack(localAudioTrackRef.current.getMediaStreamTrack());
+        }
+        localStreamRef.current = stream;
 
         setIsScreenSharing(false);
-        console.log('✅ [ScreenShare] Screen share stopped, camera restored');
+        console.log('✅ [Agora ScreenShare] Screen share stopped, camera restored');
       } else {
         // Start screen sharing
-        console.log('📺 [ScreenShare] Starting screen share');
+        console.log('📺 [Agora ScreenShare] Starting screen share');
         
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ 
-          video: {
-            cursor: 'always',
-            displaySurface: 'monitor'
-          }, 
-          audio: true 
-        });
+        const screenVideoTrack = await AgoraRTC.createScreenVideoTrack({}, 'auto');
         
         // Handle user stopping screen share from browser UI
-        screenStream.getVideoTracks()[0].addEventListener('ended', () => {
-          console.log('🛑 [ScreenShare] Screen share ended by user');
-          if (isScreenSharing) {
-            setIsScreenSharing(false);
-            toggleScreenShare();
-          }
-        });
-
-        screenShareStreamRef.current = screenStream;
-        const videoTrack = screenStream.getVideoTracks()[0];
-        const audioTrack = screenStream.getAudioTracks()[0];
-        
-        console.log('📺 [ScreenShare] Screen stream obtained:', {
-          hasVideo: !!videoTrack,
-          hasAudio: !!audioTrack,
-          videoLabel: videoTrack.label
-        });
-        
-        // Replace video track in all existing peer connections
-        Object.values(peerConnectionsRef.current).forEach(pc => {
-          const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-          if (sender) {
-            sender.replaceTrack(videoTrack);
-            console.log('🔄 [ScreenShare] Replaced video track in peer connection');
-          }
-        });
-
-        // Update local stream - preserve existing audio track
-        if (localStreamRef.current) {
-          const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
-          if (oldVideoTrack) {
-            localStreamRef.current.removeTrack(oldVideoTrack);
-            oldVideoTrack.stop();
-          }
-          localStreamRef.current.addTrack(videoTrack);
-          
-          // Optionally add screen share audio if available, otherwise keep existing audio
-          if (audioTrack) {
-            const existingAudioTrack = localStreamRef.current.getAudioTracks()[0];
-            if (existingAudioTrack) {
-              // Keep existing audio track (microphone), don't replace with screen audio
-              console.log('🎤 [ScreenShare] Keeping existing microphone audio');
-            } else {
-              localStreamRef.current.addTrack(audioTrack);
-              console.log('🔊 [ScreenShare] Added screen share audio');
+        if (screenVideoTrack.getMediaStreamTrack) {
+          screenVideoTrack.getMediaStreamTrack().addEventListener('ended', () => {
+            console.log('🛑 [Agora ScreenShare] Screen share ended by user');
+            if (isScreenSharing) {
+              setIsScreenSharing(false);
+              toggleScreenShare();
             }
-          }
-          
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = localStreamRef.current;
-          }
-        } else {
-          // No local stream yet - create one with screen share
-          localStreamRef.current = new MediaStream();
-          localStreamRef.current.addTrack(videoTrack);
-          if (audioTrack) {
-            localStreamRef.current.addTrack(audioTrack);
-          }
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = localStreamRef.current;
-          }
+          });
         }
+        
+        localScreenTrackRef.current = screenVideoTrack;
+        
+        // Unpublish camera video track
+        if (localVideoTrackRef.current) {
+          await agoraClientRef.current.unpublish([localVideoTrackRef.current]);
+        }
+        
+        // Publish screen track
+        await agoraClientRef.current.publish([screenVideoTrack]);
+        
+        // Update local video display
+        if (localVideoRef.current) {
+          screenVideoTrack.play(localVideoRef.current);
+        }
+        
+        // Update local stream for MediaRecorder compatibility
+        const stream = new MediaStream([screenVideoTrack.getMediaStreamTrack()]);
+        if (localAudioTrackRef.current) {
+          stream.addTrack(localAudioTrackRef.current.getMediaStreamTrack());
+        }
+        localStreamRef.current = stream;
+        screenShareStreamRef.current = stream;
 
         setIsScreenSharing(true);
-        console.log('✅ [ScreenShare] Screen share started successfully');
+        console.log('✅ [Agora ScreenShare] Screen share started successfully');
       }
     } catch (error) {
       console.error('❌ [ScreenShare] Error toggling screen share:', error);
@@ -1723,16 +828,6 @@ function Conference() {
                         });
                       }
                     }
-                    
-                    // Check if there's a stream waiting for this element
-                    const pc = peerConnectionsRef.current[user.socketId];
-                    if (pc) {
-                      console.log('📹 [Render] Peer connection exists for this user:', {
-                        socketId: user.socketId,
-                        connectionState: pc.connectionState,
-                        iceConnectionState: pc.iceConnectionState
-                      });
-                    }
                   } else {
                     // Element was removed - but keep the ref if stream exists
                     if (remoteVideosRef.current[user.socketId]) {
@@ -1800,10 +895,6 @@ function Conference() {
               className={`meet-control-btn image-btn ${isRecording ? 'recording' : ''}`}
               onClick={toggleScreenRecord}
               title={isRecording ? "Stop recording" : "Start recording"}
-              style={isRecording ? { 
-                backgroundColor: '#d32f2f',
-                animation: 'pulse 2s infinite'
-              } : {}}
             >
               {isRecording ? <Icons.RecordActive /> : <Icons.Record />}
             </button>
