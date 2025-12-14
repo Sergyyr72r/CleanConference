@@ -214,10 +214,60 @@ function Conference() {
     // Handle remote stream
     pc.ontrack = (event) => {
       if (event.streams && event.streams[0]) {
-        const setVideoStream = (videoElement) => {
-          if (videoElement) {
+        const setVideoStream = async (videoElement) => {
+          if (!videoElement) return;
+          
+          try {
+            // Clear any existing srcObject first to prevent conflicts
+            if (videoElement.srcObject) {
+              const oldStream = videoElement.srcObject;
+              oldStream.getTracks().forEach(track => track.stop());
+              videoElement.srcObject = null;
+            }
+            
+            // Wait a bit for cleanup
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
+            // Set new stream
             videoElement.srcObject = event.streams[0];
-            videoElement.play().catch(err => console.warn('Error playing remote video:', err));
+            
+            // Wait for loadedmetadata before playing
+            await new Promise((resolve, reject) => {
+              const onLoadedMetadata = () => {
+                videoElement.removeEventListener('loadedmetadata', onLoadedMetadata);
+                resolve();
+              };
+              const onError = () => {
+                videoElement.removeEventListener('error', onError);
+                reject(new Error('Failed to load video metadata'));
+              };
+              videoElement.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+              videoElement.addEventListener('error', onError, { once: true });
+              
+              // Timeout after 5 seconds
+              setTimeout(() => {
+                videoElement.removeEventListener('loadedmetadata', onLoadedMetadata);
+                videoElement.removeEventListener('error', onError);
+                reject(new Error('Timeout loading video metadata'));
+              }, 5000);
+            });
+            
+            // Play the video
+            const playPromise = videoElement.play();
+            if (playPromise !== undefined) {
+              await playPromise;
+            }
+          } catch (err) {
+            // Ignore AbortError as it's expected when switching streams
+            if (err.name !== 'AbortError') {
+              console.warn('Error playing remote video:', err);
+              // Retry after a short delay
+              setTimeout(() => {
+                if (videoElement && videoElement.srcObject === event.streams[0]) {
+                  videoElement.play().catch(() => {}); // Ignore errors on retry
+                }
+              }, 500);
+            }
           }
         };
 
@@ -232,7 +282,7 @@ function Conference() {
             if (videoElement) {
               setVideoStream(videoElement);
               clearInterval(retryInterval);
-            } else if (retries >= 10) {
+            } else if (retries >= 20) {
               clearInterval(retryInterval);
             }
             retries++;
@@ -563,10 +613,22 @@ function Conference() {
           {users.map(user => (
             <div key={user.socketId} className="meet-video-container">
               <video
-                ref={el => { if (el) remoteVideosRef.current[user.socketId] = el; }}
+                ref={el => { 
+                  if (el) {
+                    remoteVideosRef.current[user.socketId] = el;
+                    // Ensure video plays when element is ready
+                    if (el.srcObject) {
+                      el.play().catch(() => {}); // Ignore errors, will retry in ontrack
+                    }
+                  }
+                }}
                 autoPlay
                 playsInline
+                muted={false}
                 className="meet-video"
+                onLoadedMetadata={(e) => {
+                  e.target.play().catch(() => {}); // Try to play when metadata is loaded
+                }}
               />
               <div className="meet-name-tag">{user.userName}</div>
             </div>
