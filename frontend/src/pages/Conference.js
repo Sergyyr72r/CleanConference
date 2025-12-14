@@ -279,6 +279,29 @@ function Conference() {
             // Force the video element to load by setting autoplay and playsInline
             videoElement.autoplay = true;
             videoElement.playsInline = true;
+            videoElement.muted = false; // Ensure not muted
+            
+            // Ensure video element is visible and has dimensions (sometimes needed for playback)
+            if (videoElement.offsetWidth === 0 || videoElement.offsetHeight === 0) {
+              console.warn('⚠️ [WebRTC] Video element has zero dimensions, may prevent playback');
+            }
+            
+            // Check if tracks are actually active
+            const videoTrack = stream.getVideoTracks()[0];
+            const audioTrack = stream.getAudioTracks()[0];
+            console.log('🎥 [WebRTC] Stream tracks status:', {
+              videoTrack: videoTrack ? {
+                id: videoTrack.id,
+                enabled: videoTrack.enabled,
+                readyState: videoTrack.readyState,
+                muted: videoTrack.muted
+              } : 'none',
+              audioTrack: audioTrack ? {
+                id: audioTrack.id,
+                enabled: audioTrack.enabled,
+                readyState: audioTrack.readyState
+              } : 'none'
+            });
             
             // Add event listeners to track when data becomes available
             const trackReadyState = () => {
@@ -294,25 +317,53 @@ function Conference() {
               }
             };
             
-            // Listen for readyState changes
-            videoElement.addEventListener('loadedmetadata', () => {
+            // Listen for readyState changes with multiple listeners
+            const handleLoadedMetadata = () => {
               console.log('🎥 [WebRTC] loadedmetadata event fired, readyState:', videoElement.readyState);
               trackReadyState();
-            }, { once: true });
+            };
+            videoElement.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
             
-            videoElement.addEventListener('loadeddata', () => {
+            const handleLoadedData = () => {
               console.log('🎥 [WebRTC] loadeddata event fired, readyState:', videoElement.readyState);
               trackReadyState();
-            }, { once: true });
+            };
+            videoElement.addEventListener('loadeddata', handleLoadedData, { once: true });
             
-            videoElement.addEventListener('canplay', () => {
+            const handleCanPlay = () => {
               console.log('🎥 [WebRTC] canplay event fired, readyState:', videoElement.readyState);
               trackReadyState();
-            }, { once: true });
+            };
+            videoElement.addEventListener('canplay', handleCanPlay, { once: true });
             
-            videoElement.addEventListener('playing', () => {
+            const handlePlaying = () => {
               console.log('✅ [WebRTC] Video started playing!');
-            }, { once: true });
+            };
+            videoElement.addEventListener('playing', handlePlaying, { once: true });
+            
+            // Aggressive polling fallback - check readyState periodically
+            let pollCount = 0;
+            const maxPolls = 50; // 5 seconds total
+            const pollInterval = setInterval(() => {
+              pollCount++;
+              if (videoElement.srcObject === stream) {
+                if (videoElement.readyState > 0) {
+                  console.log('✅ [WebRTC] Video readyState changed via polling:', videoElement.readyState);
+                  clearInterval(pollInterval);
+                  trackReadyState();
+                } else if (pollCount >= maxPolls) {
+                  console.warn('⚠️ [WebRTC] Video readyState still 0 after polling, stream may not be producing data');
+                  clearInterval(pollInterval);
+                  // Check if tracks are still active
+                  if (videoTrack && videoTrack.readyState === 'live') {
+                    console.log('🔄 [WebRTC] Video track is live, forcing play attempt');
+                    setTimeout(() => attemptPlay(), 100);
+                  }
+                }
+              } else {
+                clearInterval(pollInterval);
+              }
+            }, 100);
           } else {
             console.log('🎥 [WebRTC] Same stream already set, ensuring playback');
           }
@@ -503,20 +554,44 @@ function Conference() {
       
       // If connection fails, try to recover
       if (pc.connectionState === 'failed') {
-        console.warn('⚠️ [WebRTC] Connection failed for:', socketId);
+        console.warn('⚠️ [WebRTC] Connection failed for:', socketId, {
+          iceConnectionState: pc.iceConnectionState,
+          iceGatheringState: pc.iceGatheringState
+        });
+        
         // Don't remove the video element - keep it in case connection recovers
         // The stream might still work even if connection state is 'failed'
         const videoElement = remoteVideosRef.current[socketId];
         if (videoElement && videoElement.srcObject) {
-          console.log('🔄 [WebRTC] Connection failed but video element still has stream, attempting recovery');
-          // Try to play if video has data
-          setTimeout(() => {
-            if (videoElement && videoElement.srcObject && videoElement.readyState >= 1) {
-              videoElement.play().catch(err => {
-                console.warn('⚠️ [WebRTC] Recovery play failed:', err);
-              });
-            }
-          }, 500);
+          const stream = videoElement.srcObject;
+          const videoTrack = stream.getVideoTracks()[0];
+          
+          console.log('🔄 [WebRTC] Connection failed but video element still has stream, attempting recovery', {
+            hasStream: !!stream,
+            hasVideoTrack: !!videoTrack,
+            videoTrackReady: videoTrack?.readyState,
+            videoElementReadyState: videoElement.readyState
+          });
+          
+          // If ICE is still connected, the stream might still work
+          if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+            console.log('✅ [WebRTC] ICE still connected, stream should work');
+            // Try to play if video has data, or wait for it
+            const tryRecovery = () => {
+              if (videoElement && videoElement.srcObject === stream) {
+                if (videoElement.readyState >= 1) {
+                  console.log('🔄 [WebRTC] Attempting recovery play');
+                  videoElement.play().catch(err => {
+                    console.warn('⚠️ [WebRTC] Recovery play failed:', err);
+                  });
+                } else {
+                  // Still waiting for data
+                  setTimeout(tryRecovery, 200);
+                }
+              }
+            };
+            setTimeout(tryRecovery, 500);
+          }
         }
       }
     };
@@ -876,10 +951,17 @@ function Conference() {
                       console.log('📹 [Render] Peer connection exists and is connected, checking for stream');
                     }
                   } else {
-                    // Element was removed
+                    // Element was removed - but don't delete the ref if stream still exists
+                    // This prevents losing the stream when React re-renders
                     if (remoteVideosRef.current[user.socketId]) {
-                      console.log('📹 [Render] Video element removed for socketId:', user.socketId);
-                      delete remoteVideosRef.current[user.socketId];
+                      const videoElement = remoteVideosRef.current[user.socketId];
+                      if (videoElement && videoElement.srcObject) {
+                        console.log('⚠️ [Render] Video element ref removed but stream exists, keeping ref');
+                        // Don't delete - the element might be recreated
+                      } else {
+                        console.log('📹 [Render] Video element removed for socketId:', user.socketId);
+                        delete remoteVideosRef.current[user.socketId];
+                      }
                     }
                   }
                 }}
