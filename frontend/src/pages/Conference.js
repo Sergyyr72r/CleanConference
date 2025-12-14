@@ -253,12 +253,49 @@ function Conference() {
       if ((pc.connectionState === 'failed' || pc.connectionState === 'disconnected') && 
           (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
         console.log('🔄 [WebRTC] Connection', pc.connectionState, 'but ICE connected - attempting recovery');
+        
+        // Check peer connection statistics
+        pc.getStats().then(stats => {
+          stats.forEach(stat => {
+            if (stat.type === 'inbound-rtp' && stat.mediaType === 'video') {
+              console.log('📊 [WebRTC] Inbound RTP stats:', {
+                bytesReceived: stat.bytesReceived,
+                packetsReceived: stat.packetsReceived,
+                framesReceived: stat.framesReceived,
+                framesDecoded: stat.framesDecoded,
+                framesDropped: stat.framesDropped,
+                frameWidth: stat.frameWidth,
+                frameHeight: stat.frameHeight,
+                framesPerSecond: stat.framesPerSecond
+              });
+            }
+          });
+        }).catch(() => {});
+        
         const videoElement = remoteVideosRef.current[socketId];
         if (videoElement && videoElement.srcObject) {
           const stream = videoElement.srcObject;
           const videoTrack = stream.getVideoTracks()[0];
           if (videoTrack && videoTrack.readyState === 'live') {
             console.log('🔄 [WebRTC] Video track is live, forcing play');
+            
+            // Check track statistics
+            if (videoTrack.getStats) {
+              videoTrack.getStats().then(stats => {
+                stats.forEach(stat => {
+                  if (stat.type === 'track') {
+                    console.log('📊 [WebRTC] Track stats:', {
+                      frameWidth: stat.frameWidth,
+                      frameHeight: stat.frameHeight,
+                      framesPerSecond: stat.framesPerSecond,
+                      framesSent: stat.framesSent,
+                      framesDropped: stat.framesDropped
+                    });
+                  }
+                });
+              }).catch(() => {});
+            }
+            
             // Try multiple recovery attempts
             [500, 1000, 2000].forEach((delay, index) => {
               setTimeout(() => {
@@ -288,6 +325,11 @@ function Conference() {
                   }
                 }
               }, delay);
+            });
+          } else {
+            console.warn('⚠️ [WebRTC] Video track not live:', {
+              hasTrack: !!videoTrack,
+              trackReadyState: videoTrack?.readyState
             });
           }
         }
