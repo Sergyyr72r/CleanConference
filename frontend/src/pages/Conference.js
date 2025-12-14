@@ -249,24 +249,46 @@ function Conference() {
         iceGatheringState: pc.iceGatheringState
       });
       
-      // If connection fails but ICE is still connected, try to recover
-      if (pc.connectionState === 'failed' && (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
-        console.log('🔄 [WebRTC] Connection failed but ICE connected - attempting recovery');
+      // If connection fails or disconnects but ICE is still connected, try to recover
+      if ((pc.connectionState === 'failed' || pc.connectionState === 'disconnected') && 
+          (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
+        console.log('🔄 [WebRTC] Connection', pc.connectionState, 'but ICE connected - attempting recovery');
         const videoElement = remoteVideosRef.current[socketId];
         if (videoElement && videoElement.srcObject) {
           const stream = videoElement.srcObject;
           const videoTrack = stream.getVideoTracks()[0];
           if (videoTrack && videoTrack.readyState === 'live') {
             console.log('🔄 [WebRTC] Video track is live, forcing play');
-            setTimeout(() => {
-              if (videoElement && videoElement.srcObject === stream && videoElement.paused) {
-                videoElement.play().then(() => {
-                  console.log('✅ [WebRTC] Recovery play succeeded');
-                }).catch(err => {
-                  console.warn('⚠️ [WebRTC] Recovery play failed:', err);
-                });
-              }
-            }, 500);
+            // Try multiple recovery attempts
+            [500, 1000, 2000].forEach((delay, index) => {
+              setTimeout(() => {
+                if (videoElement && videoElement.srcObject === stream) {
+                  if (videoElement.paused) {
+                    console.log(`🔄 [WebRTC] Recovery play attempt ${index + 1}`);
+                    videoElement.play().then(() => {
+                      console.log('✅ [WebRTC] Recovery play succeeded');
+                    }).catch(err => {
+                      if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
+                        console.warn('⚠️ [WebRTC] Recovery play failed:', err.name);
+                      }
+                    });
+                  } else if (videoElement.readyState === 0) {
+                    // Video playing but no frames - try reload
+                    console.log('🔄 [WebRTC] Video playing but readyState 0, attempting reload');
+                    if (!videoElement._reloading) {
+                      const currentSrcObject = videoElement.srcObject;
+                      videoElement.srcObject = null;
+                      setTimeout(() => {
+                        if (videoElement && currentSrcObject) {
+                          videoElement.srcObject = currentSrcObject;
+                          videoElement.play().catch(() => {});
+                        }
+                      }, 200);
+                    }
+                  }
+                }
+              }, delay);
+            });
           }
         }
       }
@@ -330,14 +352,52 @@ function Conference() {
           // Set the stream
           videoElement.srcObject = stream;
           
+          // Force the video element to process the stream
+          // For WebRTC streams, we need to ensure the element is ready
+          const streamVideoTrack = stream.getVideoTracks()[0];
+          if (streamVideoTrack) {
+            console.log('🎥 [WebRTC] Video track details:', {
+              id: streamVideoTrack.id,
+              enabled: streamVideoTrack.enabled,
+              readyState: streamVideoTrack.readyState,
+              muted: streamVideoTrack.muted,
+              label: streamVideoTrack.label,
+              kind: streamVideoTrack.kind
+            });
+            
+            // Ensure track is enabled
+            if (!streamVideoTrack.enabled) {
+              console.warn('⚠️ [WebRTC] Video track is disabled, enabling it');
+              streamVideoTrack.enabled = true;
+            }
+          }
+          
           console.log('🎥 [WebRTC] Stream set, readyState:', videoElement.readyState, {
             autoplay: videoElement.autoplay,
             playsInline: videoElement.playsInline,
             muted: videoElement.muted,
             streamId: stream.id,
             hasVideoTracks: stream.getVideoTracks().length,
-            hasAudioTracks: stream.getAudioTracks().length
+            hasAudioTracks: stream.getAudioTracks().length,
+            videoTrackEnabled: streamVideoTrack?.enabled,
+            videoTrackReadyState: streamVideoTrack?.readyState
           });
+          
+          // Try to force processing by checking stream active state
+          setTimeout(() => {
+            if (videoElement.srcObject === stream && videoElement.readyState === 0) {
+              const activeTrack = stream.getVideoTracks()[0];
+              if (activeTrack && activeTrack.readyState === 'live') {
+                console.log('🔄 [WebRTC] Stream active but readyState still 0, attempting direct play');
+                // Try playing directly without waiting
+                videoElement.play().catch(err => {
+                  if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
+                    console.warn('⚠️ [WebRTC] Direct play failed:', err.name);
+                  }
+                });
+              }
+            }
+          }, 100);
           
           // Function to safely play the video
           const playVideo = () => {
