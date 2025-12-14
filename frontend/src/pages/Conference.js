@@ -275,6 +275,44 @@ function Conference() {
             // Set new stream
             videoElement.srcObject = stream;
             console.log('🎥 [WebRTC] Stream set on video element, readyState:', videoElement.readyState);
+            
+            // Force the video element to load by setting autoplay and playsInline
+            videoElement.autoplay = true;
+            videoElement.playsInline = true;
+            
+            // Add event listeners to track when data becomes available
+            const trackReadyState = () => {
+              if (videoElement.srcObject === stream) {
+                console.log('🎥 [WebRTC] Video readyState changed:', {
+                  socketId,
+                  readyState: videoElement.readyState,
+                  states: ['HAVE_NOTHING', 'HAVE_METADATA', 'HAVE_CURRENT_DATA', 'HAVE_FUTURE_DATA', 'HAVE_ENOUGH_DATA']
+                });
+                if (videoElement.readyState >= 1 && videoElement.paused) {
+                  attemptPlay();
+                }
+              }
+            };
+            
+            // Listen for readyState changes
+            videoElement.addEventListener('loadedmetadata', () => {
+              console.log('🎥 [WebRTC] loadedmetadata event fired, readyState:', videoElement.readyState);
+              trackReadyState();
+            }, { once: true });
+            
+            videoElement.addEventListener('loadeddata', () => {
+              console.log('🎥 [WebRTC] loadeddata event fired, readyState:', videoElement.readyState);
+              trackReadyState();
+            }, { once: true });
+            
+            videoElement.addEventListener('canplay', () => {
+              console.log('🎥 [WebRTC] canplay event fired, readyState:', videoElement.readyState);
+              trackReadyState();
+            }, { once: true });
+            
+            videoElement.addEventListener('playing', () => {
+              console.log('✅ [WebRTC] Video started playing!');
+            }, { once: true });
           } else {
             console.log('🎥 [WebRTC] Same stream already set, ensuring playback');
           }
@@ -286,7 +324,8 @@ function Conference() {
               srcObjectMatches: videoElement.srcObject === stream,
               readyState: videoElement.readyState,
               paused: videoElement.paused,
-              hasTracks: stream.getVideoTracks().length > 0
+              hasTracks: stream.getVideoTracks().length > 0,
+              videoTrackReady: stream.getVideoTracks()[0]?.readyState
             });
             
             // Only play if this is still the current stream
@@ -295,9 +334,37 @@ function Conference() {
               return; // Stream changed, don't play
             }
             
+            // CRITICAL: Don't try to play if readyState is 0 (HAVE_NOTHING)
+            // The video element needs to have at least metadata loaded
+            if (videoElement.readyState === 0) {
+              console.warn('⚠️ [WebRTC] Video readyState is 0 (HAVE_NOTHING), waiting for data...');
+              // Wait for loadedmetadata event
+              const waitForMetadata = () => {
+                if (videoElement.srcObject === stream && videoElement.readyState >= 1) {
+                  console.log('✅ [WebRTC] Video metadata loaded, readyState:', videoElement.readyState);
+                  attemptPlay();
+                } else if (videoElement.srcObject === stream) {
+                  // Still waiting, check again
+                  setTimeout(waitForMetadata, 100);
+                }
+              };
+              // Add event listener for loadedmetadata
+              const handleMetadata = () => {
+                videoElement.removeEventListener('loadedmetadata', handleMetadata);
+                if (videoElement.srcObject === stream && videoElement.readyState >= 1) {
+                  console.log('✅ [WebRTC] Metadata loaded via event, readyState:', videoElement.readyState);
+                  attemptPlay();
+                }
+              };
+              videoElement.addEventListener('loadedmetadata', handleMetadata, { once: true });
+              // Also poll as fallback
+              setTimeout(waitForMetadata, 100);
+              return;
+            }
+            
             // Check if video is paused (needs to play)
             if (videoElement.paused) {
-              console.log('🎥 [WebRTC] Calling video.play()');
+              console.log('🎥 [WebRTC] Calling video.play(), readyState:', videoElement.readyState);
               const playPromise = videoElement.play();
               if (playPromise !== undefined) {
                 videoElement._playPromise = playPromise;
@@ -322,7 +389,7 @@ function Conference() {
                     }
                     
                     // Only log other errors
-                    console.warn('Error playing remote video:', err);
+                    console.warn('❌ [WebRTC] Error playing remote video:', err);
                     // Retry once after a delay if video is still ready
                     setTimeout(() => {
                       if (videoElement && 
@@ -330,11 +397,14 @@ function Conference() {
                           videoElement.readyState >= 2 &&
                           !videoElement._playPromise &&
                           videoElement.paused) {
+                        console.log('🔄 [WebRTC] Retrying video playback');
                         videoElement.play().catch(() => {}); // Ignore errors on retry
                       }
                     }, 500);
                   });
               }
+            } else {
+              console.log('✅ [WebRTC] Video is already playing');
             }
           };
           
@@ -430,6 +500,25 @@ function Conference() {
         iceConnectionState: pc.iceConnectionState,
         iceGatheringState: pc.iceGatheringState
       });
+      
+      // If connection fails, try to recover
+      if (pc.connectionState === 'failed') {
+        console.warn('⚠️ [WebRTC] Connection failed for:', socketId);
+        // Don't remove the video element - keep it in case connection recovers
+        // The stream might still work even if connection state is 'failed'
+        const videoElement = remoteVideosRef.current[socketId];
+        if (videoElement && videoElement.srcObject) {
+          console.log('🔄 [WebRTC] Connection failed but video element still has stream, attempting recovery');
+          // Try to play if video has data
+          setTimeout(() => {
+            if (videoElement && videoElement.srcObject && videoElement.readyState >= 1) {
+              videoElement.play().catch(err => {
+                console.warn('⚠️ [WebRTC] Recovery play failed:', err);
+              });
+            }
+          }, 500);
+        }
+      }
     };
     
     pc.oniceconnectionstatechange = () => {
