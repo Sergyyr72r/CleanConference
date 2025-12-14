@@ -328,14 +328,32 @@ function Conference() {
             return;
           }
           
+          // Check if element is in DOM and visible
+          const isInDOM = document.contains(videoElement);
+          const isVisible = videoElement.offsetWidth > 0 && videoElement.offsetHeight > 0;
+          const computedStyle = window.getComputedStyle(videoElement);
+          const isDisplayed = computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden';
+          
           console.log('🎥 [WebRTC] Setting stream on video element:', {
             socketId,
             videoElementExists: !!videoElement,
             currentSrcObject: videoElement.srcObject?.id || 'none',
             newStreamId: stream.id,
             videoElementReadyState: videoElement.readyState,
-            videoElementPaused: videoElement.paused
+            videoElementPaused: videoElement.paused,
+            isInDOM,
+            isVisible,
+            isDisplayed,
+            offsetWidth: videoElement.offsetWidth,
+            offsetHeight: videoElement.offsetHeight
           });
+          
+          if (!isInDOM) {
+            console.warn('⚠️ [WebRTC] Video element not in DOM!');
+          }
+          if (!isVisible || !isDisplayed) {
+            console.warn('⚠️ [WebRTC] Video element not visible! This may prevent stream processing.');
+          }
           
           // Cancel any pending play promise to avoid AbortError
           if (videoElement._playPromise) {
@@ -389,6 +407,24 @@ function Conference() {
               const activeTrack = stream.getVideoTracks()[0];
               if (activeTrack && activeTrack.readyState === 'live') {
                 console.log('🔄 [WebRTC] Stream active but readyState still 0, attempting direct play');
+                
+                // Check track statistics to verify it's actually sending data
+                if (activeTrack.getStats) {
+                  activeTrack.getStats().then(stats => {
+                    stats.forEach(stat => {
+                      if (stat.type === 'track') {
+                        console.log('📊 [WebRTC] Track stats:', {
+                          frameWidth: stat.frameWidth,
+                          frameHeight: stat.frameHeight,
+                          framesPerSecond: stat.framesPerSecond,
+                          framesSent: stat.framesSent,
+                          framesDropped: stat.framesDropped
+                        });
+                      }
+                    });
+                  }).catch(() => {});
+                }
+                
                 // Try playing directly without waiting
                 videoElement.play().catch(err => {
                   if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
@@ -398,6 +434,32 @@ function Conference() {
               }
             }
           }, 100);
+          
+          // Aggressively wait for loadedmetadata - this is critical for WebRTC streams
+          const waitForMetadata = () => {
+            if (videoElement.srcObject === stream) {
+              if (videoElement.readyState >= 1) {
+                console.log('✅ [WebRTC] Metadata loaded, readyState:', videoElement.readyState);
+                // Try to play once metadata is loaded
+                if (videoElement.paused) {
+                  videoElement.play().catch(() => {});
+                }
+              } else {
+                // Still 0, wait a bit more
+                setTimeout(waitForMetadata, 200);
+              }
+            }
+          };
+          
+          // Start waiting for metadata
+          const handleMetadata = () => {
+            console.log('✅ [WebRTC] loadedmetadata event fired, readyState:', videoElement.readyState);
+            waitForMetadata();
+          };
+          videoElement.addEventListener('loadedmetadata', handleMetadata, { once: true });
+          
+          // Fallback: start checking after a short delay
+          setTimeout(waitForMetadata, 200);
           
           // Function to safely play the video
           const playVideo = () => {
