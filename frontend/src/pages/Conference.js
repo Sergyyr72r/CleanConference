@@ -435,13 +435,22 @@ function Conference() {
             // Force autoplay and playsInline attributes
             videoElement.setAttribute('autoplay', 'true');
             videoElement.setAttribute('playsinline', 'true');
-            videoElement.muted = false; // Try unmuted first
+            
+            // Try muted first if readyState is 0 - browsers often block unmuted autoplay
+            const shouldTryMuted = videoElement.readyState === 0;
+            if (shouldTryMuted) {
+              console.log('🔇 [WebRTC] readyState is 0, trying muted playback first');
+              videoElement.muted = true;
+            } else {
+              videoElement.muted = false;
+            }
             
             console.log('🎥 [WebRTC] Video element attributes:', {
               autoplay: videoElement.autoplay,
               playsInline: videoElement.playsInline,
               muted: videoElement.muted,
-              srcObject: !!videoElement.srcObject
+              srcObject: !!videoElement.srcObject,
+              readyState: videoElement.readyState
             });
             
             const playPromise = videoElement.play();
@@ -588,26 +597,66 @@ function Conference() {
                     return;
                   }
                   
-                  // For NotAllowedError, try with muted
+                  // For NotAllowedError, try with muted (if not already muted)
                   if (err.name === 'NotAllowedError') {
-                    console.log('🔇 [WebRTC] Play not allowed, trying muted');
-                    videoElement.muted = true;
-                    setTimeout(() => {
-                      if (videoElement && videoElement.srcObject === stream && videoElement.paused) {
-                        videoElement.play()
-                          .then(() => {
-                            console.log('✅ [WebRTC] Video playing muted');
-                            // Try to unmute after a moment
-                            setTimeout(() => {
-                              if (videoElement && videoElement.srcObject === stream) {
-                                videoElement.muted = false;
-                              }
-                            }, 1000);
-                          })
-                          .catch(() => {});
-                      }
-                    }, 100);
+                    if (!videoElement.muted) {
+                      console.log('🔇 [WebRTC] Play not allowed, trying muted');
+                      videoElement.muted = true;
+                      setTimeout(() => {
+                        if (videoElement && videoElement.srcObject === stream && videoElement.paused) {
+                          videoElement.play()
+                            .then(() => {
+                              console.log('✅ [WebRTC] Video playing muted');
+                              // Try to unmute after a moment
+                              setTimeout(() => {
+                                if (videoElement && videoElement.srcObject === stream) {
+                                  videoElement.muted = false;
+                                }
+                              }, 1000);
+                            })
+                            .catch(() => {});
+                        }
+                      }, 100);
+                    } else {
+                      console.warn('⚠️ [WebRTC] Play not allowed even with muted');
+                    }
                     return;
+                  }
+                  
+                  // If readyState is 0 and we got an error, the stream might not be processing
+                  // Try to force reload the stream
+                  if (videoElement.readyState === 0 && err.name !== 'AbortError') {
+                    console.log('🔄 [WebRTC] readyState 0 with error, will try reload after delay');
+                    setTimeout(() => {
+                      if (videoElement && videoElement.srcObject === stream && videoElement.readyState === 0 && !videoElement._reloading) {
+                        console.log('🔄 [WebRTC] Attempting stream reload due to readyState 0');
+                        videoElement._reloading = true;
+                        const currentSrcObject = videoElement.srcObject;
+                        videoElement.srcObject = null;
+                        setTimeout(() => {
+                          if (videoElement && currentSrcObject) {
+                            videoElement.setAttribute('autoplay', 'true');
+                            videoElement.setAttribute('playsinline', 'true');
+                            videoElement.muted = true; // Start muted
+                            videoElement.srcObject = currentSrcObject;
+                            videoElement.play()
+                              .then(() => {
+                                console.log('✅ [WebRTC] Video playing after reload');
+                                videoElement._reloading = false;
+                                // Try unmuting after a moment
+                                setTimeout(() => {
+                                  if (videoElement && videoElement.srcObject === currentSrcObject) {
+                                    videoElement.muted = false;
+                                  }
+                                }, 1000);
+                              })
+                              .catch(() => {
+                                videoElement._reloading = false;
+                              });
+                          }
+                        }, 300);
+                      }
+                    }, 1000);
                   }
                   
                   // Log other errors
