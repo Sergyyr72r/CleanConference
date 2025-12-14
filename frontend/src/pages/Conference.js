@@ -321,9 +321,23 @@ function Conference() {
             videoElement._playPromise = null;
           }
           
+          // Ensure video element is properly configured before setting stream
+          videoElement.setAttribute('autoplay', 'true');
+          videoElement.setAttribute('playsinline', 'true');
+          videoElement.playsInline = true;
+          videoElement.autoplay = true;
+          
           // Set the stream
           videoElement.srcObject = stream;
-          console.log('🎥 [WebRTC] Stream set, readyState:', videoElement.readyState);
+          
+          console.log('🎥 [WebRTC] Stream set, readyState:', videoElement.readyState, {
+            autoplay: videoElement.autoplay,
+            playsInline: videoElement.playsInline,
+            muted: videoElement.muted,
+            streamId: stream.id,
+            hasVideoTracks: stream.getVideoTracks().length,
+            hasAudioTracks: stream.getAudioTracks().length
+          });
           
           // Function to safely play the video
           const playVideo = () => {
@@ -358,11 +372,46 @@ function Conference() {
             };
             videoElement.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
             
+            // Force autoplay and playsInline attributes
+            videoElement.setAttribute('autoplay', 'true');
+            videoElement.setAttribute('playsinline', 'true');
+            videoElement.muted = false; // Try unmuted first
+            
+            console.log('🎥 [WebRTC] Video element attributes:', {
+              autoplay: videoElement.autoplay,
+              playsInline: videoElement.playsInline,
+              muted: videoElement.muted,
+              srcObject: !!videoElement.srcObject
+            });
+            
             const playPromise = videoElement.play();
             if (playPromise !== undefined) {
               videoElement._playPromise = playPromise;
+              
+              // Add timeout to detect if promise hangs
+              const playTimeout = setTimeout(() => {
+                if (videoElement._playPromise === playPromise) {
+                  console.warn('⏱️ [WebRTC] play() promise timeout - checking video state');
+                  console.log('⏱️ [WebRTC] Video state:', {
+                    paused: videoElement.paused,
+                    readyState: videoElement.readyState,
+                    currentTime: videoElement.currentTime,
+                    ended: videoElement.ended
+                  });
+                  
+                  // If still paused, try again
+                  if (videoElement.paused && videoElement.srcObject === stream) {
+                    console.log('🔄 [WebRTC] Retrying play after timeout');
+                    videoElement.play().catch(err => {
+                      console.warn('❌ [WebRTC] Retry play error:', err);
+                    });
+                  }
+                }
+              }, 2000);
+              
               playPromise
                 .then(() => {
+                  clearTimeout(playTimeout);
                   if (videoElement._playPromise === playPromise) {
                     videoElement._playPromise = null;
                   }
@@ -385,9 +434,17 @@ function Conference() {
                   }, 100);
                 })
                 .catch((err) => {
+                  clearTimeout(playTimeout);
                   if (videoElement._playPromise === playPromise) {
                     videoElement._playPromise = null;
                   }
+                  
+                  console.log('❌ [WebRTC] play() promise rejected:', {
+                    name: err.name,
+                    message: err.message,
+                    paused: videoElement.paused,
+                    readyState: videoElement.readyState
+                  });
                   
                   // Suppress AbortError - it's expected when stream changes
                   if (err.name === 'AbortError') {
@@ -402,10 +459,30 @@ function Conference() {
                     return;
                   }
                   
-                  // Log other errors
-                  if (err.name !== 'NotAllowedError') {
-                    console.warn('❌ [WebRTC] Error playing remote video:', err);
+                  // For NotAllowedError, try with muted
+                  if (err.name === 'NotAllowedError') {
+                    console.log('🔇 [WebRTC] Play not allowed, trying muted');
+                    videoElement.muted = true;
+                    setTimeout(() => {
+                      if (videoElement && videoElement.srcObject === stream && videoElement.paused) {
+                        videoElement.play()
+                          .then(() => {
+                            console.log('✅ [WebRTC] Video playing muted');
+                            // Try to unmute after a moment
+                            setTimeout(() => {
+                              if (videoElement && videoElement.srcObject === stream) {
+                                videoElement.muted = false;
+                              }
+                            }, 1000);
+                          })
+                          .catch(() => {});
+                      }
+                    }, 100);
+                    return;
                   }
+                  
+                  // Log other errors
+                  console.warn('❌ [WebRTC] Error playing remote video:', err);
                   
                   // Retry if video is ready or track is live
                   const currentTrack = stream.getVideoTracks()[0];
@@ -421,6 +498,13 @@ function Conference() {
                 });
             } else {
               console.warn('⚠️ [WebRTC] play() returned undefined');
+              // If play() returns undefined, try direct play
+              setTimeout(() => {
+                if (videoElement && videoElement.srcObject === stream && videoElement.paused) {
+                  console.log('🔄 [WebRTC] Direct play attempt');
+                  videoElement.play().catch(() => {});
+                }
+              }, 100);
             }
           };
           
@@ -478,6 +562,42 @@ function Conference() {
                 }
               }
             }, 1000);
+            
+            // Aggressive polling fallback - check every 500ms and try to play
+            let pollCount = 0;
+            const maxPolls = 10; // Try for 5 seconds
+            const pollInterval = setInterval(() => {
+              pollCount++;
+              if (pollCount > maxPolls) {
+                clearInterval(pollInterval);
+                console.log('⏱️ [WebRTC] Stopped polling for playback');
+                return;
+              }
+              
+              if (videoElement && videoElement.srcObject === stream) {
+                const track = stream.getVideoTracks()[0];
+                const trackLive = track && track.readyState === 'live';
+                
+                if (trackLive && videoElement.paused) {
+                  console.log(`🔄 [WebRTC] Polling attempt ${pollCount}/${maxPolls}, readyState:`, videoElement.readyState);
+                  videoElement.play()
+                    .then(() => {
+                      console.log('✅ [WebRTC] Video started via polling');
+                      clearInterval(pollInterval);
+                    })
+                    .catch(err => {
+                      if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
+                        console.warn(`⚠️ [WebRTC] Polling play error (attempt ${pollCount}):`, err.name);
+                      }
+                    });
+                } else if (!videoElement.paused) {
+                  console.log('✅ [WebRTC] Video is playing, stopping poll');
+                  clearInterval(pollInterval);
+                }
+              } else {
+                clearInterval(pollInterval);
+              }
+            }, 500);
           } else {
             console.log('⏳ [WebRTC] Waiting for video to be ready, readyState:', videoElement.readyState);
             const handleCanPlay = () => {
