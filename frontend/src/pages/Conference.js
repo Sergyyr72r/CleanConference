@@ -396,15 +396,35 @@ function Conference() {
                     paused: videoElement.paused,
                     readyState: videoElement.readyState,
                     currentTime: videoElement.currentTime,
-                    ended: videoElement.ended
+                    ended: videoElement.ended,
+                    videoWidth: videoElement.videoWidth,
+                    videoHeight: videoElement.videoHeight
                   });
                   
-                  // If still paused, try again
-                  if (videoElement.paused && videoElement.srcObject === stream) {
-                    console.log('🔄 [WebRTC] Retrying play after timeout');
-                    videoElement.play().catch(err => {
-                      console.warn('❌ [WebRTC] Retry play error:', err);
-                    });
+                  // Check if video is actually showing frames
+                  const isActuallyPlaying = !videoElement.paused && 
+                                          videoElement.readyState >= 2 && 
+                                          videoElement.currentTime > 0;
+                  
+                  if (!isActuallyPlaying && videoElement.srcObject === stream) {
+                    // Video says it's playing but not actually showing frames
+                    if (!videoElement.paused && videoElement.readyState === 0) {
+                      console.warn('⚠️ [WebRTC] Video marked as playing but readyState is 0 - forcing reload');
+                      // Try to force the video element to process the stream
+                      const currentSrcObject = videoElement.srcObject;
+                      videoElement.srcObject = null;
+                      setTimeout(() => {
+                        if (videoElement && currentSrcObject) {
+                          videoElement.srcObject = currentSrcObject;
+                          videoElement.play().catch(() => {});
+                        }
+                      }, 100);
+                    } else if (videoElement.paused) {
+                      console.log('🔄 [WebRTC] Retrying play after timeout');
+                      videoElement.play().catch(err => {
+                        console.warn('❌ [WebRTC] Retry play error:', err);
+                      });
+                    }
                   }
                 }
               }, 2000);
@@ -424,14 +444,31 @@ function Conference() {
                   // Check if actually playing after a short delay
                   setTimeout(() => {
                     if (videoElement && videoElement.srcObject === stream) {
+                      const isActuallyPlaying = !videoElement.paused && 
+                                              videoElement.readyState >= 2 && 
+                                              videoElement.currentTime > 0;
+                      
                       if (videoElement.paused) {
                         console.warn('⚠️ [WebRTC] Video paused after play() resolved, retrying');
                         videoElement.play().catch(() => {});
+                      } else if (!isActuallyPlaying) {
+                        // Video says playing but no frames - force reload
+                        console.warn('⚠️ [WebRTC] Video playing but no frames (readyState:', videoElement.readyState, 'currentTime:', videoElement.currentTime, '), forcing reload');
+                        const currentSrcObject = videoElement.srcObject;
+                        videoElement.srcObject = null;
+                        setTimeout(() => {
+                          if (videoElement && currentSrcObject) {
+                            videoElement.srcObject = currentSrcObject;
+                            videoElement.setAttribute('autoplay', 'true');
+                            videoElement.setAttribute('playsinline', 'true');
+                            videoElement.play().catch(() => {});
+                          }
+                        }, 100);
                       } else {
-                        console.log('✅ [WebRTC] Video confirmed playing');
+                        console.log('✅ [WebRTC] Video confirmed playing with frames');
                       }
                     }
-                  }, 100);
+                  }, 500);
                 })
                 .catch((err) => {
                   clearTimeout(playTimeout);
@@ -591,8 +628,25 @@ function Conference() {
                       }
                     });
                 } else if (!videoElement.paused) {
-                  console.log('✅ [WebRTC] Video is playing, stopping poll');
-                  clearInterval(pollInterval);
+                  // Check if actually playing (has frames)
+                  const isActuallyPlaying = videoElement.readyState >= 2 && videoElement.currentTime > 0;
+                  if (isActuallyPlaying) {
+                    console.log('✅ [WebRTC] Video is playing with frames, stopping poll');
+                    clearInterval(pollInterval);
+                  } else {
+                    // Video says playing but no frames - might need to force reload
+                    if (videoElement.readyState === 0 && pollCount > 3) {
+                      console.warn('⚠️ [WebRTC] Video playing but readyState 0, forcing stream reload');
+                      const currentSrcObject = videoElement.srcObject;
+                      videoElement.srcObject = null;
+                      setTimeout(() => {
+                        if (videoElement && currentSrcObject) {
+                          videoElement.srcObject = currentSrcObject;
+                          videoElement.play().catch(() => {});
+                        }
+                      }, 100);
+                    }
+                  }
                 }
               } else {
                 clearInterval(pollInterval);
