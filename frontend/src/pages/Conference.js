@@ -320,6 +320,24 @@ function Conference() {
               hasTracks: stream.getVideoTracks().length > 0
             });
             
+            // Add playing event listener to confirm video actually starts
+            const handlePlaying = () => {
+              console.log('✅ [WebRTC] Video is actually playing now for socketId:', socketId, {
+                readyState: videoElement.readyState,
+                paused: videoElement.paused,
+                currentTime: videoElement.currentTime
+              });
+              videoElement.removeEventListener('playing', handlePlaying);
+            };
+            videoElement.addEventListener('playing', handlePlaying, { once: true });
+            
+            // Also listen for loadedmetadata which indicates the video element has processed the stream
+            const handleLoadedMetadata = () => {
+              console.log('✅ [WebRTC] Video metadata loaded, readyState:', videoElement.readyState);
+              videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
+            };
+            videoElement.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
+            
             const playPromise = videoElement.play();
             if (playPromise !== undefined) {
               videoElement._playPromise = playPromise;
@@ -328,7 +346,23 @@ function Conference() {
                   if (videoElement._playPromise === playPromise) {
                     videoElement._playPromise = null;
                   }
-                  console.log('✅ [WebRTC] Remote video playing successfully for socketId:', socketId);
+                  console.log('✅ [WebRTC] play() promise resolved for socketId:', socketId, {
+                    paused: videoElement.paused,
+                    readyState: videoElement.readyState,
+                    currentTime: videoElement.currentTime
+                  });
+                  
+                  // Check if actually playing after a short delay
+                  setTimeout(() => {
+                    if (videoElement && videoElement.srcObject === stream) {
+                      if (videoElement.paused) {
+                        console.warn('⚠️ [WebRTC] Video paused after play() resolved, retrying');
+                        videoElement.play().catch(() => {});
+                      } else {
+                        console.log('✅ [WebRTC] Video confirmed playing');
+                      }
+                    }
+                  }, 100);
                 })
                 .catch((err) => {
                   if (videoElement._playPromise === playPromise) {
@@ -381,6 +415,25 @@ function Conference() {
           } else if (isTrackLive) {
             // Track is live but readyState is 0 - wait a bit for video element to process
             console.log('🎥 [WebRTC] Track is live but readyState is 0, waiting for video element to process');
+            
+            // Listen for loadedmetadata event which indicates stream processing started
+            const handleLoadedMetadata = () => {
+              console.log('✅ [WebRTC] Metadata loaded, readyState:', videoElement.readyState);
+              if (videoElement.srcObject === stream) {
+                playVideo();
+              }
+            };
+            videoElement.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
+            
+            // Also listen for loadeddata
+            const handleLoadedData = () => {
+              console.log('✅ [WebRTC] Data loaded, readyState:', videoElement.readyState);
+              if (videoElement.srcObject === stream && videoElement.paused) {
+                playVideo();
+              }
+            };
+            videoElement.addEventListener('loadeddata', handleLoadedData, { once: true });
+            
             // Wait a short time for the video element to start processing the stream
             setTimeout(() => {
               if (videoElement.srcObject === stream) {
@@ -394,6 +447,17 @@ function Conference() {
                 }
               }
             }, 300);
+            
+            // Additional fallback - try again after longer delay
+            setTimeout(() => {
+              if (videoElement && videoElement.srcObject === stream && videoElement.paused) {
+                const trackStillLive = stream.getVideoTracks()[0]?.readyState === 'live';
+                if (trackStillLive) {
+                  console.log('🔄 [WebRTC] Delayed fallback play attempt, readyState:', videoElement.readyState);
+                  playVideo();
+                }
+              }
+            }, 1000);
           } else {
             console.log('⏳ [WebRTC] Waiting for video to be ready, readyState:', videoElement.readyState);
             const handleCanPlay = () => {
