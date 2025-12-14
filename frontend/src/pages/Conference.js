@@ -214,60 +214,62 @@ function Conference() {
     // Handle remote stream
     pc.ontrack = (event) => {
       if (event.streams && event.streams[0]) {
-        const setVideoStream = async (videoElement) => {
+        const stream = event.streams[0];
+        const setVideoStream = (videoElement) => {
           if (!videoElement) return;
           
-          try {
-            // Clear any existing srcObject first to prevent conflicts
-            if (videoElement.srcObject) {
-              const oldStream = videoElement.srcObject;
+          // Store reference to current play promise to cancel if needed
+          if (videoElement._playPromise) {
+            videoElement._playPromise.catch(() => {}); // Cancel previous play
+            videoElement._playPromise = null;
+          }
+          
+          // Pause and clear current stream
+          videoElement.pause();
+          if (videoElement.srcObject) {
+            const oldStream = videoElement.srcObject;
+            // Only stop tracks if it's a different stream
+            if (oldStream.id !== stream.id) {
               oldStream.getTracks().forEach(track => track.stop());
-              videoElement.srcObject = null;
             }
+          }
+          
+          // Set new stream
+          videoElement.srcObject = stream;
+          
+          // Use loadedmetadata event to ensure video is ready
+          const handleLoadedMetadata = () => {
+            videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
             
-            // Wait a bit for cleanup
-            await new Promise(resolve => setTimeout(resolve, 50));
-            
-            // Set new stream
-            videoElement.srcObject = event.streams[0];
-            
-            // Wait for loadedmetadata before playing
-            await new Promise((resolve, reject) => {
-              const onLoadedMetadata = () => {
-                videoElement.removeEventListener('loadedmetadata', onLoadedMetadata);
-                resolve();
-              };
-              const onError = () => {
-                videoElement.removeEventListener('error', onError);
-                reject(new Error('Failed to load video metadata'));
-              };
-              videoElement.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
-              videoElement.addEventListener('error', onError, { once: true });
-              
-              // Timeout after 5 seconds
-              setTimeout(() => {
-                videoElement.removeEventListener('loadedmetadata', onLoadedMetadata);
-                videoElement.removeEventListener('error', onError);
-                reject(new Error('Timeout loading video metadata'));
-              }, 5000);
-            });
-            
-            // Play the video
+            // Play with proper error handling
             const playPromise = videoElement.play();
             if (playPromise !== undefined) {
-              await playPromise;
+              videoElement._playPromise = playPromise;
+              playPromise
+                .then(() => {
+                  videoElement._playPromise = null;
+                })
+                .catch((err) => {
+                  videoElement._playPromise = null;
+                  // Only log non-AbortError errors
+                  if (err.name !== 'AbortError' && err.name !== 'NotAllowedError') {
+                    console.warn('Error playing remote video:', err);
+                    // Retry once after a delay
+                    setTimeout(() => {
+                      if (videoElement && videoElement.srcObject === stream && videoElement.readyState >= 2) {
+                        videoElement.play().catch(() => {}); // Ignore errors on retry
+                      }
+                    }, 300);
+                  }
+                });
             }
-          } catch (err) {
-            // Ignore AbortError as it's expected when switching streams
-            if (err.name !== 'AbortError') {
-              console.warn('Error playing remote video:', err);
-              // Retry after a short delay
-              setTimeout(() => {
-                if (videoElement && videoElement.srcObject === event.streams[0]) {
-                  videoElement.play().catch(() => {}); // Ignore errors on retry
-                }
-              }, 500);
-            }
+          };
+          
+          // If metadata is already loaded, play immediately
+          if (videoElement.readyState >= 1) {
+            handleLoadedMetadata();
+          } else {
+            videoElement.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
           }
         };
 
@@ -616,19 +618,12 @@ function Conference() {
                 ref={el => { 
                   if (el) {
                     remoteVideosRef.current[user.socketId] = el;
-                    // Ensure video plays when element is ready
-                    if (el.srcObject) {
-                      el.play().catch(() => {}); // Ignore errors, will retry in ontrack
-                    }
                   }
                 }}
                 autoPlay
                 playsInline
                 muted={false}
                 className="meet-video"
-                onLoadedMetadata={(e) => {
-                  e.target.play().catch(() => {}); // Try to play when metadata is loaded
-                }}
               />
               <div className="meet-name-tag">{user.userName}</div>
             </div>
