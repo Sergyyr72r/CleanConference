@@ -2,7 +2,7 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(135deg, #fff5e6 0%, #ffe6cc 100%);
+  background: #000000;
 }
 
 .home-header {
