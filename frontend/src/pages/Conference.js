@@ -337,24 +337,36 @@ function Conference() {
                   
                   // Suppress AbortError - it's expected when stream changes
                   if (err.name === 'AbortError') {
-                    // Silently ignore - this happens when a new stream is set
+                    console.log('⚠️ [WebRTC] Play aborted (expected when stream changes)');
+                    // Try again after a short delay
+                    setTimeout(() => {
+                      if (videoElement && videoElement.srcObject === stream && videoElement.paused) {
+                        console.log('🔄 [WebRTC] Retrying play after AbortError');
+                        videoElement.play().catch(() => {});
+                      }
+                    }, 200);
                     return;
                   }
                   
                   // Log other errors
                   if (err.name !== 'NotAllowedError') {
-                    console.warn('Error playing remote video:', err);
+                    console.warn('❌ [WebRTC] Error playing remote video:', err);
                   }
                   
-                  // Retry if video is ready
-                  if (videoElement.srcObject === stream && videoElement.readyState >= 2) {
+                  // Retry if video is ready or track is live
+                  const currentTrack = stream.getVideoTracks()[0];
+                  const trackLive = currentTrack && currentTrack.readyState === 'live';
+                  if (videoElement.srcObject === stream && (videoElement.readyState >= 2 || trackLive)) {
                     setTimeout(() => {
                       if (videoElement && videoElement.srcObject === stream && videoElement.paused) {
+                        console.log('🔄 [WebRTC] Retrying play, readyState:', videoElement.readyState, 'trackLive:', trackLive);
                         videoElement.play().catch(() => {}); // Ignore errors on retry
                       }
-                    }, 300);
+                    }, 500);
                   }
                 });
+            } else {
+              console.warn('⚠️ [WebRTC] play() returned undefined');
             }
           };
           
@@ -363,12 +375,25 @@ function Conference() {
           const isTrackLive = videoTrack && videoTrack.readyState === 'live';
           
           // Try to play immediately if ready, otherwise wait for canplay event
-          if (videoElement.readyState >= 2 || isTrackLive) {
-            console.log('🎥 [WebRTC] Video ready or track live, attempting play:', {
-              readyState: videoElement.readyState,
-              trackLive: isTrackLive
-            });
+          if (videoElement.readyState >= 2) {
+            console.log('🎥 [WebRTC] Video ready (readyState >= 2), attempting play');
             playVideo();
+          } else if (isTrackLive) {
+            // Track is live but readyState is 0 - wait a bit for video element to process
+            console.log('🎥 [WebRTC] Track is live but readyState is 0, waiting for video element to process');
+            // Wait a short time for the video element to start processing the stream
+            setTimeout(() => {
+              if (videoElement.srcObject === stream) {
+                if (videoElement.readyState > 0) {
+                  console.log('✅ [WebRTC] Video readyState changed, attempting play');
+                  playVideo();
+                } else {
+                  // Still 0, but track is live - try playing anyway
+                  console.log('🔄 [WebRTC] readyState still 0 but track live, attempting forced play');
+                  playVideo();
+                }
+              }
+            }, 300);
           } else {
             console.log('⏳ [WebRTC] Waiting for video to be ready, readyState:', videoElement.readyState);
             const handleCanPlay = () => {
@@ -541,15 +566,18 @@ function Conference() {
     console.log('📥 [WebRTC] Received answer from:', sender);
     const pc = peerConnectionsRef.current[sender];
     if (pc) {
-      // Accept answer if we have a local offer, even if state has changed
-      if (pc.signalingState === 'have-local-offer' || pc.signalingState === 'stable') {
+      // Only set answer if we're in the correct state
+      if (pc.signalingState === 'have-local-offer') {
         try {
-          console.log('📥 [WebRTC] Setting remote answer, current state:', pc.signalingState);
+          console.log('📥 [WebRTC] Setting remote answer');
           await pc.setRemoteDescription(new RTCSessionDescription(answer));
           console.log('✅ [WebRTC] Remote answer set successfully');
         } catch (error) {
           console.error('❌ [WebRTC] Error setting remote answer:', error);
         }
+      } else if (pc.signalingState === 'stable') {
+        // Answer already set or connection has progressed - this is okay
+        console.log('✅ [WebRTC] Answer already processed or connection established, state:', pc.signalingState);
       } else {
         console.warn('⚠️ [WebRTC] Cannot set answer - wrong signaling state:', pc.signalingState);
       }
