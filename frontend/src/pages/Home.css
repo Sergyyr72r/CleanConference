@@ -7,7 +7,7 @@
 
 .home-header {
   background: transparent;
-  color: #333;
+  color: #ffffff;
   padding: 30px 40px;
   display: flex;
   justify-content: space-between;
@@ -17,7 +17,7 @@
 .home-header h1 {
   font-size: 28px;
   font-weight: 400;
-  color: #333;
+  color: #ffffff;
 }
 
 .auth-buttons {
@@ -77,13 +77,13 @@
 }
 
 .action-button:not(.large) {
-  padding: 40px 50px;
-  min-width: 200px;
-  min-height: 200px;
+  padding: 60px 80px;
+  min-width: 300px;
+  min-height: 300px;
 }
 
 .button-icon {
-  font-size: 64px;
+  font-size: 80px;
   margin-bottom: 20px;
 }
 
@@ -92,7 +92,7 @@
 }
 
 .button-text {
-  font-size: 18px;
+  font-size: 24px;
   color: #333;
 }
 
@@ -123,5 +123,77 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.join-input-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  max-width: 500px;
+  width: 100%;
+}
+
+.join-title {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 400;
+  margin: 0;
+}
+
+.room-id-input {
+  width: 100%;
+  padding: 16px;
+  border: 2px solid #3c4043;
+  border-radius: 8px;
+  background: #1a1a1a;
+  color: #ffffff;
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.room-id-input:focus {
+  border-color: #8ab4f8;
+}
+
+.room-id-input::placeholder {
+  color: #9aa0a6;
+}
+
+.join-buttons {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.join-confirm-btn,
+.join-cancel-btn {
+  flex: 1;
+  padding: 14px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.join-confirm-btn {
+  background: #1a73e8;
+  color: white;
+}
+
+.join-confirm-btn:hover {
+  opacity: 0.9;
+}
+
+.join-cancel-btn {
+  background: #3c4043;
+  color: white;
+}
+
+.join-cancel-btn:hover {
+  opacity: 0.9;
 }
 
