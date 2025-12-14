@@ -1628,24 +1628,69 @@ function Conference() {
                     
                     // If old element had a stream, reattach it to new element
                     if (oldStream && !el.srcObject) {
-                      console.log('🔄 [Render] Reattaching stream to new video element');
-                      el.srcObject = oldStream;
+                      console.log('🔄 [Render] Reattaching stream to new video element', {
+                        streamId: oldStream.id,
+                        hasVideoTracks: oldStream.getVideoTracks().length,
+                        hasAudioTracks: oldStream.getAudioTracks().length
+                      });
+                      
+                      // Ensure new element is properly configured
+                      el.setAttribute('autoplay', 'true');
+                      el.setAttribute('playsinline', 'true');
                       el.autoplay = true;
                       el.playsInline = true;
-                      el.muted = false;
+                      el.muted = true; // Start muted for autoplay
+                      
+                      el.srcObject = oldStream;
                       
                       // Try to play if track is live
                       const videoTrack = oldStream.getVideoTracks()[0];
                       if (videoTrack && videoTrack.readyState === 'live') {
+                        console.log('🔄 [Render] Track is live, attempting play on reattached element');
+                        
+                        // Wait for metadata before playing
+                        const handleReattachMetadata = () => {
+                          console.log('✅ [Render] Reattached element metadata loaded, readyState:', el.readyState);
+                          el.removeEventListener('loadedmetadata', handleReattachMetadata);
+                          if (el && el.srcObject === oldStream && el.paused) {
+                            el.play()
+                              .then(() => {
+                                console.log('✅ [Render] Reattached video playing');
+                                // Try unmuting after a moment
+                                setTimeout(() => {
+                                  if (el && el.srcObject === oldStream) {
+                                    el.muted = false;
+                                  }
+                                }, 1000);
+                              })
+                              .catch(err => {
+                                console.warn('⚠️ [Render] Reattached video play failed:', err.name);
+                              });
+                          }
+                        };
+                        el.addEventListener('loadedmetadata', handleReattachMetadata, { once: true });
+                        
+                        // Fallback: try playing after delay
                         setTimeout(() => {
                           if (el && el.srcObject === oldStream && el.paused) {
-                            el.play().then(() => {
-                              console.log('✅ [Render] Reattached video playing');
-                            }).catch(err => {
-                              console.warn('⚠️ [Render] Reattached video play failed:', err);
-                            });
+                            console.log('🔄 [Render] Fallback play attempt for reattached element');
+                            el.play()
+                              .then(() => {
+                                console.log('✅ [Render] Reattached video playing (fallback)');
+                                setTimeout(() => {
+                                  if (el && el.srcObject === oldStream) {
+                                    el.muted = false;
+                                  }
+                                }, 1000);
+                              })
+                              .catch(() => {});
                           }
-                        }, 100);
+                        }, 500);
+                      } else {
+                        console.warn('⚠️ [Render] Track not live when reattaching:', {
+                          hasTrack: !!videoTrack,
+                          readyState: videoTrack?.readyState
+                        });
                       }
                     }
                     
