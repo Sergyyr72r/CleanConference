@@ -150,3 +150,4 @@ When working correctly:
 
 If Person A leaves before Person B joins, Person B will see an empty room (this is normal - the room is empty).
 
+

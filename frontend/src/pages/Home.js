@@ -19,7 +19,7 @@ function Home() {
     const roomId = roomIdInput.trim();
     if (roomId) {
       // Extract room ID from URL if full URL is provided
-      const match = roomId.match(/\/guest-join\/([^\/\s]+)/) || roomId.match(/([a-f0-9-]{36})/i);
+      const match = roomId.match(/\/guest-join\/([^/\s]+)/) || roomId.match(/([a-f0-9-]{36})/i);
       if (match) {
         navigate(`/guest-join/${match[1]}`);
       } else {

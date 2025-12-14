@@ -79,12 +79,7 @@ function Conference() {
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState(null);
-  const [recordedChunks, setRecordedChunks] = useState([]);
-  const [copySuccess, setCopySuccess] = useState(false);
   const [showNamePopup, setShowNamePopup] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [nameInput, setNameInput] = useState('');
   const [popupNameInput, setPopupNameInput] = useState('');
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false); // Added video toggle state
@@ -135,7 +130,6 @@ function Conference() {
     const savedName = getCookie('userName');
     const finalUserName = savedName || 'Caller';
     setUserName(finalUserName);
-    setNameInput(finalUserName);
     
     // Show name popup if name is "Caller" (default/not set)
     if (finalUserName === 'Caller') {
@@ -243,18 +237,13 @@ function Conference() {
           .catch(err => {
             console.error('❌ [Agora] Error joining/publishing:', err);
           });
-      })
-      .catch(err => {
-        console.error('❌ [Agora] Error creating tracks:', err);
-        alert('Could not access camera/microphone. Please allow permissions.');
-      });
-
+        
         // Join room with name from cookie (or "Caller" if not set)
         const nameToUse = getCookie('userName') || 'Caller';
         socketRef.current.emit('join-room', roomId, nameToUse);
       })
       .catch(err => {
-        console.error('Error accessing media devices:', err);
+        console.error('❌ [Agora] Error creating tracks:', err);
         alert('Could not access camera/microphone. Please allow permissions.');
       });
 
@@ -348,37 +337,6 @@ function Conference() {
       }
     });
   };
-  // Note: handleUserJoined and handleExistingUsers are no longer needed
-  // Agora automatically handles all users in the channel through event handlers
-
-  // Note: handleOffer, handleAnswer, handleIceCandidate are no longer needed
-  // Agora handles offer/answer/ICE candidate exchange automatically
-
-  const handleUserLeft = (socketId) => {
-    console.log('👋 [Socket] User left:', socketId);
-    // Agora handles video cleanup automatically through user-left event
-    // Just clean up local references
-    delete remoteUsersRef.current[socketId];
-    if (remoteVideosRef.current[socketId]) {
-      remoteVideosRef.current[socketId].srcObject = null;
-    }
-  };
-
-  const handleUserList = (userList) => {
-    const currentSocketId = currentSocketIdRef.current || socketRef.current?.id;
-    const otherUsers = userList.filter(user => user.socketId !== currentSocketId);
-    setUsers(otherUsers);
-    
-    otherUsers.forEach(user => {
-      if (!remoteVideosRef.current[user.socketId]) {
-        const video = document.createElement('video');
-        video.autoplay = true;
-        video.playsInline = true;
-        video.className = 'meet-remote-video';
-        remoteVideosRef.current[user.socketId] = video;
-      }
-    });
-  };
 
   const handleChatMessage = (data) => {
     setMessages(prev => [...prev, data]);
@@ -439,10 +397,6 @@ function Conference() {
           console.warn('⚠️ [ScreenShare] No local stream to restore');
           return;
         }
-
-        // Get current audio track to preserve it
-        const currentAudioTrack = localStreamRef.current.getAudioTracks()[0];
-        const wasAudioEnabled = currentAudioTrack && currentAudioTrack.enabled;
 
         // Create new camera video track with Agora
         const cameraVideoTrack = await AgoraRTC.createCameraVideoTrack();
@@ -624,7 +578,6 @@ function Conference() {
           
           // Clean up
           URL.revokeObjectURL(url);
-          setRecordedChunks([]);
           
           console.log('✅ [Record] File saved:', fileName, `(${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
           alert(`Recording saved as ${fileName}`);
@@ -638,9 +591,7 @@ function Conference() {
         
         // Start recording
         recorder.start(1000); // Collect data every second
-        setMediaRecorder(recorder);
         mediaRecorderRef.current = recorder;
-        setRecordedChunks(chunks);
         setIsRecording(true);
         
         console.log('✅ [Record] Recording started');
@@ -672,57 +623,52 @@ function Conference() {
     const link = `${window.location.origin}/guest-join/${roomId}`;
     console.log('Copy link clicked, link:', link);
     
-    try {
-      // Try modern clipboard API first
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        console.log('Using clipboard API');
-        await navigator.clipboard.writeText(link);
-        console.log('Link copied successfully');
-        setCopySuccess(true);
-        setTimeout(() => setCopySuccess(false), 2000);
-        alert('Link copied to clipboard!');
-      } else {
-        console.log('Using fallback method');
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = link;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        textArea.style.top = '-999999px';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        
-        try {
-          const successful = document.execCommand('copy');
-          if (successful) {
-            console.log('Link copied with fallback method');
-            setCopySuccess(true);
-            setTimeout(() => setCopySuccess(false), 2000);
-            alert('Link copied to clipboard!');
-          } else {
-            console.error('Failed to copy link');
+      try {
+        // Try modern clipboard API first
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          console.log('Using clipboard API');
+          await navigator.clipboard.writeText(link);
+          console.log('Link copied successfully');
+          alert('Link copied to clipboard!');
+        } else {
+          console.log('Using fallback method');
+          // Fallback for older browsers
+          const textArea = document.createElement('textarea');
+          textArea.value = link;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          textArea.style.top = '-999999px';
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          
+          try {
+            const successful = document.execCommand('copy');
+            if (successful) {
+              console.log('Link copied with fallback method');
+              alert('Link copied to clipboard!');
+            } else {
+              console.error('Failed to copy link');
+              alert(`Link: ${link}\n\nPlease copy this link manually.`);
+            }
+          } catch (err) {
+            console.error('Fallback copy failed:', err);
             alert(`Link: ${link}\n\nPlease copy this link manually.`);
+          } finally {
+            document.body.removeChild(textArea);
           }
-        } catch (err) {
-          console.error('Fallback copy failed:', err);
-          alert(`Link: ${link}\n\nPlease copy this link manually.`);
-        } finally {
-          document.body.removeChild(textArea);
         }
+      } catch (err) {
+        console.error('Failed to copy link:', err);
+        // Show link in alert as last resort
+        alert(`Link: ${link}\n\nPlease copy this link manually.\n\nError: ${err.message}`);
       }
-    } catch (err) {
-      console.error('Failed to copy link:', err);
-      // Show link in alert as last resort
-      alert(`Link: ${link}\n\nPlease copy this link manually.\n\nError: ${err.message}`);
-    }
   };
 
   const handleNamePopupConfirm = () => {
     const newName = popupNameInput.trim() || 'Caller';
     setUserName(newName);
     setCookie('userName', newName);
-    setNameInput(newName);
     setShowNamePopup(false);
     if (socketRef.current) socketRef.current.emit('update-name', newName);
   };

@@ -41,7 +41,7 @@ REACT_APP_AGORA_APP_ID=your_app_id_here
 2. Select your frontend service
 3. Go to **Environment** tab
 4. Add environment variable:
-   - **Key**: `REACT_APP_AGORA_APP_ID`
+   - **Key**: ^
    - **Value**: Your Agora App ID
 
 ### Step 3: Restart Development Server
@@ -103,3 +103,4 @@ For production use, consider upgrading to a paid plan.
 - Removed: PeerJS, native WebRTC peer connections
 - Kept: Socket.io for chat and user list management
 - Changed: Video/audio now handled entirely by Agora
+
