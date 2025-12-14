@@ -55,6 +55,16 @@ const Icons = {
   VideoOff: () => <IconImg src={iconPaths.videoOff} alt="Video Off" className="control-icon" />,
   ScreenShare: () => <IconImg src={iconPaths.screenShare} alt="Screen Share" className="control-icon" />,
   ScreenShareActive: () => <IconImg src={iconPaths.screenShare} alt="Screen Share Active" className="control-icon active" />,
+  Record: () => (
+    <svg viewBox="0 0 24 24" width="24" height="24" className="control-icon">
+      <circle cx="12" cy="12" r="8" fill="currentColor" />
+    </svg>
+  ),
+  RecordActive: () => (
+    <svg viewBox="0 0 24 24" width="24" height="24" className="control-icon">
+      <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
+    </svg>
+  ),
   CallEnd: () => <IconImg src={iconPaths.endCall} alt="End Call" className="control-icon end-call" />,
   Copy: () => <IconImg src={iconPaths.copyLink} alt="Copy Link" className="control-icon copy-link" />,
   
@@ -98,6 +108,7 @@ function Conference() {
   const localStreamRef = useRef(null);
   const screenShareStreamRef = useRef(null);
   const currentSocketIdRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
 
   // Mobile detection
   useEffect(() => {
@@ -182,6 +193,12 @@ function Conference() {
 
     return () => {
       // Cleanup
+      // Stop recording if active
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current = null;
+      }
+      
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(track => track.stop());
       }
@@ -912,7 +929,145 @@ function Conference() {
     }
   };
 
+  const toggleScreenRecord = async () => {
+    try {
+      if (isRecording) {
+        // Stop recording
+        console.log('🛑 [Record] Stopping recording');
+        
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+          mediaRecorderRef.current = null;
+        }
+        
+        setIsRecording(false);
+      } else {
+        // Start recording
+        console.log('🔴 [Record] Starting recording');
+        
+        // Collect all video and audio tracks from local and remote streams
+        const allTracks = [];
+        
+        // Add local stream tracks
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach(track => {
+            if (track.enabled && track.readyState === 'live') {
+              allTracks.push(track);
+            }
+          });
+        }
+        
+        // Add remote stream tracks
+        Object.values(remoteVideosRef.current).forEach(videoElement => {
+          if (videoElement && videoElement.srcObject) {
+            const stream = videoElement.srcObject;
+            stream.getTracks().forEach(track => {
+              if (track.enabled && track.readyState === 'live') {
+                allTracks.push(track);
+              }
+            });
+          }
+        });
+        
+        if (allTracks.length === 0) {
+          alert('No active streams to record. Please make sure video/audio is enabled.');
+          return;
+        }
+        
+        console.log('📹 [Record] Tracks to record:', {
+          total: allTracks.length,
+          video: allTracks.filter(t => t.kind === 'video').length,
+          audio: allTracks.filter(t => t.kind === 'audio').length
+        });
+        
+        // Create a combined stream
+        const combinedStream = new MediaStream();
+        allTracks.forEach(track => {
+          combinedStream.addTrack(track);
+        });
+        
+        // Check if MediaRecorder is supported
+        if (!MediaRecorder.isTypeSupported('video/webm')) {
+          alert('Recording is not supported in this browser. Please use Chrome or Firefox.');
+          return;
+        }
+        
+        // Create MediaRecorder
+        const options = {
+          mimeType: 'video/webm;codecs=vp9,opus',
+          videoBitsPerSecond: 2500000 // 2.5 Mbps
+        };
+        
+        // Fallback to default if codec not supported
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+          options.mimeType = 'video/webm';
+        }
+        
+        const recorder = new MediaRecorder(combinedStream, options);
+        const chunks = [];
+        
+        recorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) {
+            chunks.push(event.data);
+            console.log('📹 [Record] Data chunk received:', event.data.size, 'bytes');
+          }
+        };
+        
+        recorder.onstop = () => {
+          console.log('🛑 [Record] Recording stopped, creating file');
+          
+          const blob = new Blob(chunks, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          
+          // Create download link
+          const a = document.createElement('a');
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const fileName = `conference-recording-${timestamp}.webm`;
+          
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          
+          // Clean up
+          URL.revokeObjectURL(url);
+          setRecordedChunks([]);
+          
+          console.log('✅ [Record] File saved:', fileName, `(${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
+          alert(`Recording saved as ${fileName}`);
+        };
+        
+        recorder.onerror = (event) => {
+          console.error('❌ [Record] Recording error:', event.error);
+          alert('Error during recording: ' + event.error.message);
+          setIsRecording(false);
+        };
+        
+        // Start recording
+        recorder.start(1000); // Collect data every second
+        setMediaRecorder(recorder);
+        mediaRecorderRef.current = recorder;
+        setRecordedChunks(chunks);
+        setIsRecording(true);
+        
+        console.log('✅ [Record] Recording started');
+      }
+    } catch (error) {
+      console.error('❌ [Record] Error toggling recording:', error);
+      alert(`Error starting recording: ${error.message}`);
+      setIsRecording(false);
+    }
+  };
+
   const endConference = () => {
+    // Stop recording if active
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+      setIsRecording(false);
+    }
+    
     if (localStreamRef.current) localStreamRef.current.getTracks().forEach(track => track.stop());
     if (screenShareStreamRef.current) screenShareStreamRef.current.getTracks().forEach(track => track.stop());
     navigate('/');
@@ -1105,6 +1260,20 @@ function Conference() {
               title="Present now"
             >
               {isScreenSharing ? <Icons.ScreenShareActive /> : <Icons.ScreenShare />}
+            </button>
+          )}
+
+          {(!isMobile || mobileMenuExpanded) && (
+            <button 
+              className={`meet-control-btn image-btn ${isRecording ? 'recording' : ''}`}
+              onClick={toggleScreenRecord}
+              title={isRecording ? "Stop recording" : "Start recording"}
+              style={isRecording ? { 
+                backgroundColor: '#d32f2f',
+                animation: 'pulse 2s infinite'
+              } : {}}
+            >
+              {isRecording ? <Icons.RecordActive /> : <Icons.Record />}
             </button>
           )}
 
