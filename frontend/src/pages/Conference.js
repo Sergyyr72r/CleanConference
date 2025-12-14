@@ -99,6 +99,16 @@ function Conference() {
   const screenShareStreamRef = useRef(null);
   const currentSocketIdRef = useRef(null);
 
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   useEffect(() => {
     // Clock
     const updateTime = () => {
