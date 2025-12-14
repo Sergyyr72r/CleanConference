@@ -84,6 +84,7 @@ function Conference() {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false); // Added video toggle state
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isCreator, setIsCreator] = useState(false); // Track if current user is conference creator
   
   // UI States
   const [currentTime, setCurrentTime] = useState('');
@@ -255,6 +256,10 @@ function Conference() {
     socketRef.current.on('existing-users', (users) => {
       console.log('👥 [Socket] Existing users:', users);
       // Agora handles video automatically, this is just for user list
+    });
+    socketRef.current.on('is-creator', (isCreatorFlag) => {
+      console.log('👑 [Socket] Is creator:', isCreatorFlag);
+      setIsCreator(isCreatorFlag);
     });
     socketRef.current.on('user-left', handleUserLeft);
     socketRef.current.on('user-list', handleUserList);
@@ -848,7 +853,7 @@ function Conference() {
             </button>
           )}
 
-          {(!isMobile || mobileMenuExpanded) && (
+          {isCreator && (!isMobile || mobileMenuExpanded) && (
             <button 
               className={`meet-control-btn image-btn ${isRecording ? 'recording' : ''}`}
               onClick={toggleScreenRecord}

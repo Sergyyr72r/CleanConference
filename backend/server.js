@@ -45,6 +45,7 @@ app.use('/api/conference', conferenceRoutes);
 
 // WebRTC signaling with Socket.io
 const rooms = new Map(); // roomId -> Set of socketIds
+const roomCreators = new Map(); // roomId -> creatorSocketId
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
@@ -54,8 +55,11 @@ io.on('connection', (socket) => {
     socket.data.roomId = roomId;
     socket.data.userName = userName;
 
+    const isCreator = !rooms.has(roomId);
+    
     if (!rooms.has(roomId)) {
       rooms.set(roomId, new Set());
+      roomCreators.set(roomId, socket.id);
     }
     rooms.get(roomId).add(socket.id);
 
@@ -78,6 +82,9 @@ io.on('connection', (socket) => {
       .filter(Boolean);
 
     socket.emit('existing-users', existingUsers);
+    
+    // Tell the user if they are the creator
+    socket.emit('is-creator', isCreator);
 
     // Broadcast updated user list
     broadcastUserList(roomId);
@@ -119,8 +126,21 @@ io.on('connection', (socket) => {
       socket.to(roomId).emit('user-left', socket.id);
       broadcastUserList(roomId);
       
-      if (rooms.get(roomId).size === 0) {
-        rooms.delete(roomId);
+      // If creator left, assign new creator (first remaining user) or delete room
+      if (roomCreators.get(roomId) === socket.id) {
+        if (rooms.get(roomId).size > 0) {
+          // Assign new creator (first remaining user)
+          const newCreatorId = Array.from(rooms.get(roomId))[0];
+          roomCreators.set(roomId, newCreatorId);
+          const newCreatorSocket = io.sockets.sockets.get(newCreatorId);
+          if (newCreatorSocket) {
+            newCreatorSocket.emit('is-creator', true);
+          }
+        } else {
+          // Room is empty, clean up
+          rooms.delete(roomId);
+          roomCreators.delete(roomId);
+        }
       }
     }
     console.log('User disconnected:', socket.id);
