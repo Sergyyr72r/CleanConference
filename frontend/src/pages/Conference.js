@@ -856,11 +856,11 @@ function Conference() {
 
           {isMobile && (
             <button 
-              className="meet-control-btn mobile-expand-btn"
+              className="meet-control-btn image-btn"
               onClick={() => setMobileMenuExpanded(!mobileMenuExpanded)}
               title={mobileMenuExpanded ? "Collapse" : "More options"}
             >
-              {mobileMenuExpanded ? '▼' : '▲'}
+              ...
             </button>
           )}
         </div>
@@ -984,7 +984,7 @@ function Conference() {
               autoFocus
               onKeyPress={(e) => e.key === 'Enter' && handleNamePopupConfirm()}
             />
-            <button onClick={handleNamePopupConfirm} className="popup-confirm-btn">Ask to join</button>
+            <button onClick={handleNamePopupConfirm} className="popup-confirm-btn">Join</button>
           </div>
         </div>
       )}
