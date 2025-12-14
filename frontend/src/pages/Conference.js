@@ -208,10 +208,13 @@ function Conference() {
     // Add local stream tracks
     if (localStreamRef.current) {
       const tracks = localStreamRef.current.getTracks();
+      const videoTrack = tracks.find(t => t.kind === 'video');
       console.log('📤 [WebRTC] Adding local tracks:', {
         socketId,
         videoTracks: tracks.filter(t => t.kind === 'video').length,
-        audioTracks: tracks.filter(t => t.kind === 'audio').length
+        audioTracks: tracks.filter(t => t.kind === 'audio').length,
+        isScreenSharing: isScreenSharing,
+        videoTrackLabel: videoTrack?.label || 'none'
       });
       tracks.forEach(track => {
         pc.addTrack(track, localStreamRef.current);
@@ -746,24 +749,50 @@ function Conference() {
     try {
       if (isScreenSharing) {
         // Stop screen sharing
+        console.log('🛑 [ScreenShare] Stopping screen share');
+        
         if (screenShareStreamRef.current) {
-          screenShareStreamRef.current.getTracks().forEach(track => track.stop());
+          screenShareStreamRef.current.getTracks().forEach(track => {
+            track.stop();
+            console.log('🛑 [ScreenShare] Stopped track:', track.kind);
+          });
           screenShareStreamRef.current = null;
         }
 
         // Switch back to camera
+        if (!localStreamRef.current) {
+          console.warn('⚠️ [ScreenShare] No local stream to restore');
+          return;
+        }
+
+        // Get current audio track to preserve it
+        const currentAudioTrack = localStreamRef.current.getAudioTracks()[0];
+        const wasAudioEnabled = currentAudioTrack && currentAudioTrack.enabled;
+
+        // Get new camera video track
         const cameraStream = await navigator.mediaDevices.getUserMedia({ 
           video: true, 
-          audio: !isMuted
+          audio: !isMuted && wasAudioEnabled
         });
         
         const videoTrack = cameraStream.getVideoTracks()[0];
+        const audioTrack = cameraStream.getAudioTracks()[0];
         
+        console.log('📹 [ScreenShare] Switching back to camera:', {
+          hasVideo: !!videoTrack,
+          hasAudio: !!audioTrack
+        });
+        
+        // Replace video track in all peer connections
         Object.values(peerConnectionsRef.current).forEach(pc => {
           const videoSender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-          if (videoSender) videoSender.replaceTrack(videoTrack);
+          if (videoSender) {
+            videoSender.replaceTrack(videoTrack);
+            console.log('🔄 [ScreenShare] Replaced video track in peer connection');
+          }
         });
 
+        // Update local stream
         if (localStreamRef.current) {
           const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
           if (oldVideoTrack) {
@@ -771,6 +800,16 @@ function Conference() {
             oldVideoTrack.stop();
           }
           localStreamRef.current.addTrack(videoTrack);
+          
+          // Handle audio: use new audio track if available, otherwise keep existing
+          if (audioTrack) {
+            const oldAudioTrack = localStreamRef.current.getAudioTracks()[0];
+            if (oldAudioTrack) {
+              localStreamRef.current.removeTrack(oldAudioTrack);
+              oldAudioTrack.stop();
+            }
+            localStreamRef.current.addTrack(audioTrack);
+          }
         } else {
           localStreamRef.current = cameraStream;
         }
@@ -780,22 +819,48 @@ function Conference() {
         }
 
         setIsScreenSharing(false);
+        console.log('✅ [ScreenShare] Screen share stopped, camera restored');
       } else {
         // Start screen sharing
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        console.log('📺 [ScreenShare] Starting screen share');
         
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ 
+          video: {
+            cursor: 'always',
+            displaySurface: 'monitor'
+          }, 
+          audio: true 
+        });
+        
+        // Handle user stopping screen share from browser UI
         screenStream.getVideoTracks()[0].addEventListener('ended', () => {
-          if (isScreenSharing) toggleScreenShare();
+          console.log('🛑 [ScreenShare] Screen share ended by user');
+          if (isScreenSharing) {
+            setIsScreenSharing(false);
+            toggleScreenShare();
+          }
         });
 
         screenShareStreamRef.current = screenStream;
         const videoTrack = screenStream.getVideoTracks()[0];
+        const audioTrack = screenStream.getAudioTracks()[0];
         
+        console.log('📺 [ScreenShare] Screen stream obtained:', {
+          hasVideo: !!videoTrack,
+          hasAudio: !!audioTrack,
+          videoLabel: videoTrack.label
+        });
+        
+        // Replace video track in all existing peer connections
         Object.values(peerConnectionsRef.current).forEach(pc => {
           const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-          if (sender) sender.replaceTrack(videoTrack);
+          if (sender) {
+            sender.replaceTrack(videoTrack);
+            console.log('🔄 [ScreenShare] Replaced video track in peer connection');
+          }
         });
 
+        // Update local stream - preserve existing audio track
         if (localStreamRef.current) {
           const oldVideoTrack = localStreamRef.current.getVideoTracks()[0];
           if (oldVideoTrack) {
@@ -803,13 +868,47 @@ function Conference() {
             oldVideoTrack.stop();
           }
           localStreamRef.current.addTrack(videoTrack);
-          if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current; // Self view shows screen
+          
+          // Optionally add screen share audio if available, otherwise keep existing audio
+          if (audioTrack) {
+            const existingAudioTrack = localStreamRef.current.getAudioTracks()[0];
+            if (existingAudioTrack) {
+              // Keep existing audio track (microphone), don't replace with screen audio
+              console.log('🎤 [ScreenShare] Keeping existing microphone audio');
+            } else {
+              localStreamRef.current.addTrack(audioTrack);
+              console.log('🔊 [ScreenShare] Added screen share audio');
+            }
+          }
+          
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = localStreamRef.current;
+          }
+        } else {
+          // No local stream yet - create one with screen share
+          localStreamRef.current = new MediaStream();
+          localStreamRef.current.addTrack(videoTrack);
+          if (audioTrack) {
+            localStreamRef.current.addTrack(audioTrack);
+          }
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = localStreamRef.current;
+          }
         }
 
         setIsScreenSharing(true);
+        console.log('✅ [ScreenShare] Screen share started successfully');
       }
     } catch (error) {
-      console.error('Error toggling screen share:', error);
+      console.error('❌ [ScreenShare] Error toggling screen share:', error);
+      if (error.name === 'NotAllowedError') {
+        alert('Screen sharing permission was denied. Please allow screen sharing in your browser settings.');
+      } else if (error.name === 'NotFoundError') {
+        alert('No screen sharing source found. Please make sure you have a screen to share.');
+      } else {
+        alert(`Error starting screen share: ${error.message}`);
+      }
+      setIsScreenSharing(false);
     }
   };
 
