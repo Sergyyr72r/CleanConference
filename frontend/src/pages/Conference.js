@@ -88,6 +88,8 @@ function Conference() {
   // UI States
   const [currentTime, setCurrentTime] = useState('');
   const [activeSidebar, setActiveSidebar] = useState(null); // 'people', 'chat', 'info'
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileMenuExpanded, setMobileMenuExpanded] = useState(false);
 
   const socketRef = useRef(null);
   const localVideoRef = useRef(null);
@@ -563,11 +565,13 @@ function Conference() {
       </div>
 
       <div className="meet-bottom-bar">
-        <div className="meet-bottom-left">
-          <div className="meet-time">{currentTime}</div>
-          <div className="meet-separator">|</div>
-          <div className="meet-code">{roomId}</div>
-        </div>
+        {!isMobile && (
+          <div className="meet-bottom-left">
+            <div className="meet-time">{currentTime}</div>
+            <div className="meet-separator">|</div>
+            <div className="meet-code">{roomId}</div>
+          </div>
+        )}
 
         <div className="meet-bottom-center">
           <button 
@@ -586,13 +590,15 @@ function Conference() {
             {isVideoOff ? <Icons.VideoOff /> : <Icons.Video />}
           </button>
 
-          <button 
-            className="meet-control-btn image-btn"
-            onClick={toggleScreenShare}
-            title="Present now"
-          >
-            {isScreenSharing ? <Icons.ScreenShareActive /> : <Icons.ScreenShare />}
-          </button>
+          {(!isMobile || mobileMenuExpanded) && (
+            <button 
+              className="meet-control-btn image-btn"
+              onClick={toggleScreenShare}
+              title="Present now"
+            >
+              {isScreenSharing ? <Icons.ScreenShareActive /> : <Icons.ScreenShare />}
+            </button>
+          )}
 
           <button 
             className="meet-control-btn image-btn"
@@ -601,60 +607,72 @@ function Conference() {
           >
             <Icons.CallEnd />
           </button>
+
+          {isMobile && (
+            <button 
+              className="meet-control-btn mobile-expand-btn"
+              onClick={() => setMobileMenuExpanded(!mobileMenuExpanded)}
+              title={mobileMenuExpanded ? "Collapse" : "More options"}
+            >
+              {mobileMenuExpanded ? '▼' : '▲'}
+            </button>
+          )}
         </div>
 
-        <div className="meet-bottom-right">
-          <button 
-            className="meet-action-btn copy-link-btn image-btn" 
-            title="Copy link"
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              console.log('Copy button clicked - handler fired!');
-              copyConferenceLink(e);
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              console.log('Copy button mousedown');
-            }}
-            style={{ 
-              borderRadius: '24px', 
-              padding: '0',
-              background: 'transparent',
-              width: '109px',
-              height: '109px',
-              border: 'none',
-              boxShadow: 'none',
-              cursor: 'pointer',
-              zIndex: 100,
-              position: 'relative'
-            }}
-          >
-            <Icons.Copy />
-          </button>
+        {(!isMobile || mobileMenuExpanded) && (
+          <div className="meet-bottom-right">
+            <button 
+              className="meet-action-btn copy-link-btn image-btn" 
+              title="Copy link"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Copy button clicked - handler fired!');
+                copyConferenceLink(e);
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Copy button mousedown');
+              }}
+              style={{ 
+                borderRadius: '24px', 
+                padding: '0',
+                background: 'transparent',
+                width: '109px',
+                height: '109px',
+                border: 'none',
+                boxShadow: 'none',
+                cursor: 'pointer',
+                zIndex: 100,
+                position: 'relative'
+              }}
+            >
+              <Icons.Copy />
+            </button>
 
-          <button className="meet-action-btn" title="Meeting details" onClick={copyConferenceLink}>
-            <Icons.Info />
-          </button>
-          
-          <button 
-            className={`meet-action-btn ${activeSidebar === 'people' ? 'active' : ''}`}
-            onClick={() => setActiveSidebar(activeSidebar === 'people' ? null : 'people')}
-            title="Show everyone"
-          >
-            <Icons.People />
-          </button>
-          
-          <button 
-            className={`meet-action-btn ${activeSidebar === 'chat' ? 'active' : ''}`}
-            onClick={() => setActiveSidebar(activeSidebar === 'chat' ? null : 'chat')}
-            title="Chat with everyone"
-          >
-            <Icons.Chat />
-          </button>
-        </div>
+            <button className="meet-action-btn" title="Meeting details" onClick={copyConferenceLink}>
+              <Icons.Info />
+            </button>
+            
+            <button 
+              className={`meet-action-btn ${activeSidebar === 'people' ? 'active' : ''}`}
+              onClick={() => setActiveSidebar(activeSidebar === 'people' ? null : 'people')}
+              title="Show everyone"
+            >
+              <Icons.People />
+            </button>
+            
+            <button 
+              className={`meet-action-btn ${activeSidebar === 'chat' ? 'active' : ''}`}
+              onClick={() => setActiveSidebar(activeSidebar === 'chat' ? null : 'chat')}
+              title="Chat with everyone"
+            >
+              <Icons.Chat />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Sidebars */}
