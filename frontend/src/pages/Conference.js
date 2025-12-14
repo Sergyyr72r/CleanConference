@@ -254,10 +254,15 @@ function Conference() {
           (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
         console.log('🔄 [WebRTC] Connection', pc.connectionState, 'but ICE connected - attempting recovery');
         
-        // Check peer connection statistics
+        // Check peer connection statistics - this is critical for diagnosis
+        console.log('📊 [WebRTC] Checking peer connection statistics...');
         pc.getStats().then(stats => {
+          let hasInboundRTP = false;
+          let hasRemoteInboundRTP = false;
+          
           stats.forEach(stat => {
             if (stat.type === 'inbound-rtp' && stat.mediaType === 'video') {
+              hasInboundRTP = true;
               console.log('📊 [WebRTC] Inbound RTP stats:', {
                 bytesReceived: stat.bytesReceived,
                 packetsReceived: stat.packetsReceived,
@@ -266,11 +271,36 @@ function Conference() {
                 framesDropped: stat.framesDropped,
                 frameWidth: stat.frameWidth,
                 frameHeight: stat.frameHeight,
-                framesPerSecond: stat.framesPerSecond
+                framesPerSecond: stat.framesPerSecond,
+                jitter: stat.jitter,
+                packetsLost: stat.packetsLost
+              });
+            }
+            if (stat.type === 'remote-inbound-rtp' && stat.mediaType === 'video') {
+              hasRemoteInboundRTP = true;
+              console.log('📊 [WebRTC] Remote Inbound RTP stats:', {
+                bytesReceived: stat.bytesReceived,
+                packetsReceived: stat.packetsReceived,
+                jitter: stat.jitter,
+                packetsLost: stat.packetsLost
+              });
+            }
+            if (stat.type === 'transport') {
+              console.log('📊 [WebRTC] Transport stats:', {
+                bytesReceived: stat.bytesReceived,
+                bytesSent: stat.bytesSent,
+                packetsReceived: stat.packetsReceived,
+                packetsSent: stat.packetsSent
               });
             }
           });
-        }).catch(() => {});
+          
+          if (!hasInboundRTP) {
+            console.warn('⚠️ [WebRTC] No inbound RTP stats found - stream may not be receiving data!');
+          }
+        }).catch(err => {
+          console.error('❌ [WebRTC] Error getting stats:', err);
+        });
         
         const videoElement = remoteVideosRef.current[socketId];
         if (videoElement && videoElement.srcObject) {
