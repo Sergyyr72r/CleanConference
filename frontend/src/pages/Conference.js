@@ -384,18 +384,20 @@ function Conference() {
         // Stop screen sharing and switch back to camera
         console.log('🛑 [Agora ScreenShare] Stopping screen share');
         
+        // Unpublish screen track(s) first
+        if (localScreenTrackRef.current) {
+          await agoraClientRef.current.unpublish([localScreenTrackRef.current]);
+          localScreenTrackRef.current.stop();
+          localScreenTrackRef.current.close();
+          localScreenTrackRef.current = null;
+        }
+        
         if (screenShareStreamRef.current) {
           screenShareStreamRef.current.getTracks().forEach(track => {
             track.stop();
             console.log('🛑 [ScreenShare] Stopped track:', track.kind);
           });
           screenShareStreamRef.current = null;
-        }
-
-        // Switch back to camera
-        if (!localStreamRef.current) {
-          console.warn('⚠️ [ScreenShare] No local stream to restore');
-          return;
         }
 
         // Create new camera video track with Agora
@@ -423,7 +425,11 @@ function Conference() {
         // Start screen sharing
         console.log('📺 [Agora ScreenShare] Starting screen share');
         
-        const screenVideoTrack = await AgoraRTC.createScreenVideoTrack({}, 'auto');
+        const screenTracks = await AgoraRTC.createScreenVideoTrack({}, 'auto');
+        
+        // createScreenVideoTrack can return a single track or an array [videoTrack, audioTrack]
+        const screenVideoTrack = Array.isArray(screenTracks) ? screenTracks[0] : screenTracks;
+        const screenAudioTrack = Array.isArray(screenTracks) ? screenTracks[1] : null;
         
         // Handle user stopping screen share from browser UI
         if (screenVideoTrack.getMediaStreamTrack) {
@@ -443,8 +449,12 @@ function Conference() {
           await agoraClientRef.current.unpublish([localVideoTrackRef.current]);
         }
         
-        // Publish screen track
-        await agoraClientRef.current.publish([screenVideoTrack]);
+        // Publish screen track(s) - include audio track if available
+        const tracksToPublish = [screenVideoTrack];
+        if (screenAudioTrack) {
+          tracksToPublish.push(screenAudioTrack);
+        }
+        await agoraClientRef.current.publish(tracksToPublish);
         
         // Update local video display
         if (localVideoRef.current) {
@@ -453,7 +463,9 @@ function Conference() {
         
         // Update local stream for MediaRecorder compatibility
         const stream = new MediaStream([screenVideoTrack.getMediaStreamTrack()]);
-        if (localAudioTrackRef.current) {
+        if (screenAudioTrack) {
+          stream.addTrack(screenAudioTrack.getMediaStreamTrack());
+        } else if (localAudioTrackRef.current) {
           stream.addTrack(localAudioTrackRef.current.getMediaStreamTrack());
         }
         localStreamRef.current = stream;
