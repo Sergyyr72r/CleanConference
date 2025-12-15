@@ -333,14 +333,22 @@ function Conference() {
         
         // Use Agora's play() method for local video display (recommended way)
         if (localVideoRef.current) {
-          videoTrack.play(localVideoRef.current).catch(err => {
-            console.warn('⚠️ [Agora] Local video play failed, falling back to srcObject:', err);
-            // Fallback to srcObject if play() fails
-            localVideoRef.current.srcObject = stream;
-            localVideoRef.current.play().catch(playErr => {
-              console.error('❌ [Agora] Fallback play also failed:', playErr);
+          const playResult = videoTrack.play(localVideoRef.current);
+          // play() may return a Promise or void, so check before calling .catch()
+          if (playResult && typeof playResult.catch === 'function') {
+            playResult.catch(err => {
+              console.warn('⚠️ [Agora] Local video play failed, falling back to srcObject:', err);
+              // Fallback to srcObject if play() fails
+              localVideoRef.current.srcObject = stream;
+              localVideoRef.current.play().catch(playErr => {
+                console.error('❌ [Agora] Fallback play also failed:', playErr);
+              });
             });
-          });
+          } else {
+            // play() returned void, so it succeeded or doesn't return a Promise
+            // Still set up fallback stream for MediaRecorder compatibility
+            console.log('✅ [Agora] Local video play initiated');
+          }
         }
 
         // Initialize mute state (audio starts unmuted)
@@ -766,32 +774,46 @@ function Conference() {
         setTimeout(() => {
           if (localVideoTrackRef.current && localVideoRef.current) {
             // Use Agora's play() method directly (same as screen share)
-            localVideoTrackRef.current.play(localVideoRef.current).then(() => {
-              console.log('✅ [Agora] Local video playing after re-enable');
-              
-              // Also update localStreamRef for MediaRecorder compatibility
-              const stream = new MediaStream([localVideoTrackRef.current.getMediaStreamTrack()]);
-              if (localAudioTrackRef.current) {
-                stream.addTrack(localAudioTrackRef.current.getMediaStreamTrack());
-              }
-              localStreamRef.current = stream;
-            }).catch(err => {
-              console.warn('⚠️ [Agora] Local video play failed after re-enable:', err);
-              // Fallback: try using srcObject
-              try {
+            const playResult = localVideoTrackRef.current.play(localVideoRef.current);
+            
+            // play() may return a Promise or void, so check before calling .then()/.catch()
+            if (playResult && typeof playResult.then === 'function') {
+              playResult.then(() => {
+                console.log('✅ [Agora] Local video playing after re-enable');
+                
+                // Also update localStreamRef for MediaRecorder compatibility
                 const stream = new MediaStream([localVideoTrackRef.current.getMediaStreamTrack()]);
                 if (localAudioTrackRef.current) {
                   stream.addTrack(localAudioTrackRef.current.getMediaStreamTrack());
                 }
                 localStreamRef.current = stream;
-                localVideoRef.current.srcObject = stream;
-                localVideoRef.current.play().catch(playErr => {
-                  console.error('❌ [Agora] Fallback play also failed:', playErr);
-                });
-              } catch (fallbackErr) {
-                console.error('❌ [Agora] Fallback stream creation failed:', fallbackErr);
+              }).catch(err => {
+                console.warn('⚠️ [Agora] Local video play failed after re-enable:', err);
+                // Fallback: try using srcObject
+                try {
+                  const stream = new MediaStream([localVideoTrackRef.current.getMediaStreamTrack()]);
+                  if (localAudioTrackRef.current) {
+                    stream.addTrack(localAudioTrackRef.current.getMediaStreamTrack());
+                  }
+                  localStreamRef.current = stream;
+                  localVideoRef.current.srcObject = stream;
+                  localVideoRef.current.play().catch(playErr => {
+                    console.error('❌ [Agora] Fallback play also failed:', playErr);
+                  });
+                } catch (fallbackErr) {
+                  console.error('❌ [Agora] Fallback stream creation failed:', fallbackErr);
+                }
+              });
+            } else {
+              // play() returned void, so it succeeded or doesn't return a Promise
+              console.log('✅ [Agora] Local video play initiated after re-enable');
+              // Still update localStreamRef for MediaRecorder compatibility
+              const stream = new MediaStream([localVideoTrackRef.current.getMediaStreamTrack()]);
+              if (localAudioTrackRef.current) {
+                stream.addTrack(localAudioTrackRef.current.getMediaStreamTrack());
               }
-            });
+              localStreamRef.current = stream;
+            }
           }
         }, 300); // Increased delay to ensure track is ready
         
