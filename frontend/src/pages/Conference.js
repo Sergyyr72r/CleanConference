@@ -219,11 +219,11 @@ function Conference() {
           localVideoRef.current.srcObject = stream;
         }
 
-        // Initialize mute state
-        setIsMuted(!audioTrack.isPlaying);
+        // Initialize mute state (audio starts unmuted)
+        setIsMuted(false);
         
-        // Initialize video state
-        setIsVideoOff(!videoTrack.isPlaying);
+        // Initialize video state (camera starts on)
+        setIsVideoOff(false);
 
         // Join Agora channel using roomId
         const uid = socketRef.current?.id || Math.floor(Math.random() * 100000);
@@ -353,16 +353,6 @@ function Conference() {
     const currentSocketId = currentSocketIdRef.current || socketRef.current?.id;
     const otherUsers = userList.filter(user => user.socketId !== currentSocketId);
     setUsers(otherUsers);
-    
-    otherUsers.forEach(user => {
-      if (!remoteVideosRef.current[user.socketId]) {
-        const video = document.createElement('video');
-        video.autoplay = true;
-        video.playsInline = true;
-        video.className = 'meet-remote-video';
-        remoteVideosRef.current[user.socketId] = video;
-      }
-    });
   };
 
   const handleChatMessage = (data) => {
@@ -875,7 +865,7 @@ function Conference() {
                 }}
                 autoPlay
                 playsInline
-                muted={false}
+                muted
                 className="meet-video"
               />
               <div className="meet-name-tag">{user.userName}</div>
