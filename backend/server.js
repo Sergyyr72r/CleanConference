@@ -119,6 +119,20 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('request-reconnect', (targetSocketId) => {
+    // Forward reconnect request to target user
+    const targetSocket = io.sockets.sockets.get(targetSocketId);
+    if (targetSocket) {
+      console.log(`Reconnect request sent from ${socket.id} to ${targetSocketId}`);
+      targetSocket.emit('reconnect-request', {
+        fromSocketId: socket.id,
+        timestamp: Date.now()
+      });
+    } else {
+      console.log(`Target socket ${targetSocketId} not found for reconnect request`);
+    }
+  });
+
   socket.on('disconnect', () => {
     const roomId = socket.data.roomId;
     if (roomId && rooms.has(roomId)) {

@@ -401,6 +401,33 @@ function Conference() {
     socketRef.current.on('user-left', handleUserLeft);
     socketRef.current.on('user-list', handleUserList);
     socketRef.current.on('chat-message', handleChatMessage);
+    
+    // Listen for reconnect requests from other users
+    socketRef.current.on('reconnect-request', ({ fromSocketId, timestamp }) => {
+      console.log('🔄 [Socket] Received reconnect request from:', fromSocketId);
+      
+      // Trigger Agora reconnection by leaving and rejoining
+      if (agoraClientRef.current && roomId) {
+        const currentUid = agoraClientRef.current.uid;
+        console.log('🔄 [Agora] Reconnecting to Agora channel due to remote request...');
+        
+        agoraClientRef.current.leave().then(() => {
+          console.log('✅ [Agora] Left channel, rejoining...');
+          // Rejoin with same UID
+          return agoraClientRef.current.join(AGORA_APP_ID, roomId, null, currentUid);
+        }).then(() => {
+          console.log('✅ [Agora] Rejoined channel successfully');
+          // Republish tracks if we have them
+          if (localAudioTrackRef.current && localVideoTrackRef.current) {
+            return agoraClientRef.current.publish([localAudioTrackRef.current, localVideoTrackRef.current]);
+          }
+        }).then(() => {
+          console.log('✅ [Agora] Republished tracks after reconnection');
+        }).catch(err => {
+          console.error('❌ [Agora] Error during reconnection:', err);
+        });
+      }
+    });
 
     // Fullscreen change event listener
     const handleFullscreenChange = () => {
@@ -571,13 +598,32 @@ function Conference() {
         // If we get here, no track was found - log summary (but only occasionally to avoid spam)
         const retryCount = (videoElement.dataset.retryCount || 0) + 1;
         videoElement.dataset.retryCount = retryCount;
+        const waitTime = retryCount * 2; // 2 seconds per retry
+        
+        // Track when we started waiting for this socketId
+        if (!videoElement.dataset.waitStartTime) {
+          videoElement.dataset.waitStartTime = Date.now().toString();
+        }
+        const waitStartTime = parseInt(videoElement.dataset.waitStartTime);
+        const totalWaitTime = (Date.now() - waitStartTime) / 1000; // in seconds
+        
+        // After 30 seconds, send reconnect request to remote user
+        if (totalWaitTime >= 30 && !videoElement.dataset.reconnectRequested) {
+          videoElement.dataset.reconnectRequested = 'true';
+          console.warn(`🔄 [Retry] No video track found after ${totalWaitTime.toFixed(0)}s for socketId: ${socketId}. Sending reconnect request to remote user.`);
+          if (socketRef.current) {
+            socketRef.current.emit('request-reconnect', socketId);
+          }
+        }
+        
         if (retryCount % 5 === 0) { // Log every 5th retry (every 10 seconds)
-          console.warn('⚠️ [Retry] No track found after', retryCount, 'attempts for socketId:', socketId, {
+          console.warn(`⚠️ [Retry] No video track found after ${retryCount} attempts (${waitTime}s) for socketId: ${socketId}. Waiting for remote user to enable camera/publish video.`, {
             hasPendingBySocketId: !!pendingTrack,
             hasMappedUid: !!mappedUid,
             unmappedPendingCount: unmappedUids.length,
             unmappedActiveCount: unmappedActiveUids.length,
-            availableTracks
+            availableTracks,
+            totalWaitTime: totalWaitTime.toFixed(0) + 's'
           });
         }
       });
