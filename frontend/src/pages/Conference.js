@@ -382,15 +382,36 @@ function Conference() {
     }
   };
 
-  const toggleVideo = () => {
+  const toggleVideo = async () => {
     if (localVideoTrackRef.current) {
       const newVideoState = !isVideoOff;
       if (newVideoState) {
         localVideoTrackRef.current.setEnabled(false);
+        setIsVideoOff(true);
       } else {
+        // Re-enable the camera track
         localVideoTrackRef.current.setEnabled(true);
+        
+        // Wait a moment for the track to be ready, then update local video element
+        setTimeout(() => {
+          if (localVideoTrackRef.current && localVideoRef.current) {
+            // Create a new MediaStream from the re-enabled track
+            const stream = new MediaStream([localVideoTrackRef.current.getMediaStreamTrack()]);
+            if (localAudioTrackRef.current) {
+              stream.addTrack(localAudioTrackRef.current.getMediaStreamTrack());
+            }
+            localStreamRef.current = stream;
+            localVideoRef.current.srcObject = stream;
+            
+            // Try to play the video
+            localVideoRef.current.play().catch(err => {
+              console.warn('⚠️ [Agora] Local video play failed after re-enable:', err);
+            });
+          }
+        }, 200);
+        
+        setIsVideoOff(false);
       }
-      setIsVideoOff(newVideoState);
       console.log('📹 [Agora] Video toggled:', !newVideoState);
     }
   };
