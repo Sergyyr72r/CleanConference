@@ -164,6 +164,31 @@ function Conference() {
     agoraClientRef.current = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
     
     // Set up Agora event handlers
+    // Listen for when users join Agora (before they publish)
+    agoraClientRef.current.on('user-joined', (user) => {
+      console.log('👤 [Agora] User joined channel:', user.uid, '(waiting for publish)');
+      // Try to match this UID to a socketId early
+      const usersList = users;
+      const uidStr = user.uid.toString();
+      
+      // Try to find a matching socketId
+      const directMatch = usersList.find(u => u.socketId === uidStr);
+      if (directMatch) {
+        agoraUidToSocketIdRef.current[user.uid] = directMatch.socketId;
+        console.log('✅ [Agora] Pre-matched UID to socketId on join:', user.uid, '->', directMatch.socketId);
+      } else {
+        // Find an unmapped user
+        const unmappedUser = usersList.find(u => {
+          const hasMapping = Object.values(agoraUidToSocketIdRef.current).includes(u.socketId);
+          return !hasMapping;
+        });
+        if (unmappedUser) {
+          agoraUidToSocketIdRef.current[user.uid] = unmappedUser.socketId;
+          console.log('✅ [Agora] Pre-matched UID to socketId on join (unmapped):', user.uid, '->', unmappedUser.socketId);
+        }
+      }
+    });
+    
     agoraClientRef.current.on('user-published', async (user, mediaType) => {
       console.log('🎥 [Agora] User published:', user.uid, 'mediaType:', mediaType);
       await agoraClientRef.current.subscribe(user, mediaType);
