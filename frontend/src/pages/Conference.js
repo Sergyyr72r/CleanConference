@@ -393,8 +393,111 @@ function Conference() {
     document.addEventListener('mozfullscreenchange', handleFullscreenChange);
     document.addEventListener('MSFullscreenChange', handleFullscreenChange);
 
+    // Periodic retry mechanism: check for video elements without tracks and try to match them
+    const retryInterval = setInterval(() => {
+      // Check all video elements in remoteVideosRef
+      Object.keys(remoteVideosRef.current).forEach(socketId => {
+        const videoElement = remoteVideosRef.current[socketId];
+        if (!videoElement || videoElement.srcObject) {
+          return; // Element doesn't exist or already has a stream
+        }
+        
+        // Check if there's a pending track for this socketId
+        const pendingTrack = pendingAgoraTracksRef.current[socketId];
+        if (pendingTrack && pendingTrack.videoTrack) {
+          console.log('🔄 [Retry] Found pending track for socketId:', socketId, '- attempting to play');
+          try {
+            pendingTrack.videoTrack.play(videoElement);
+            console.log('✅ [Retry] Successfully played pending track');
+            delete pendingAgoraTracksRef.current[socketId];
+            return;
+          } catch (err) {
+            console.error('❌ [Retry] Error playing pending track:', err);
+          }
+        }
+        
+        // Check if there's a mapped UID for this socketId with an active track
+        const mappedUid = Object.keys(agoraUidToSocketIdRef.current).find(
+          uid => agoraUidToSocketIdRef.current[uid] === socketId
+        );
+        if (mappedUid) {
+          const activeTrack = activeRemoteVideoTracksRef.current[mappedUid];
+          if (activeTrack) {
+            console.log('🔄 [Retry] Found active track by mapped UID. UID:', mappedUid, 'socketId:', socketId, '- attempting to play');
+            try {
+              activeTrack.play(videoElement);
+              console.log('✅ [Retry] Successfully played active track');
+              return;
+            } catch (err) {
+              console.error('❌ [Retry] Error playing active track:', err);
+            }
+          }
+          
+          // Also check pendingAgoraTracksByUidRef
+          const trackByUid = pendingAgoraTracksByUidRef.current[mappedUid];
+          if (trackByUid && trackByUid.videoTrack) {
+            console.log('🔄 [Retry] Found track in pendingAgoraTracksByUidRef. UID:', mappedUid, 'socketId:', socketId, '- attempting to play');
+            try {
+              trackByUid.videoTrack.play(videoElement);
+              console.log('✅ [Retry] Successfully played track from pendingAgoraTracksByUidRef');
+              delete pendingAgoraTracksByUidRef.current[mappedUid];
+              return;
+            } catch (err) {
+              console.error('❌ [Retry] Error playing track from pendingAgoraTracksByUidRef:', err);
+            }
+          }
+        }
+        
+        // Check for unmapped tracks that should be matched to this socketId
+        const unmappedUids = Object.keys(pendingAgoraTracksByUidRef.current).filter(
+          uid => !agoraUidToSocketIdRef.current[uid] || 
+                 agoraUidToSocketIdRef.current[uid] === uid.toString()
+        );
+        
+        if (unmappedUids.length > 0) {
+          const uidToMatch = unmappedUids[0];
+          const unmappedTrack = pendingAgoraTracksByUidRef.current[uidToMatch];
+          if (unmappedTrack && unmappedTrack.videoTrack) {
+            console.log('🔄 [Retry] Matching unmapped track. UID:', uidToMatch, '-> socketId:', socketId, '- attempting to play');
+            agoraUidToSocketIdRef.current[uidToMatch] = socketId;
+            try {
+              unmappedTrack.videoTrack.play(videoElement);
+              console.log('✅ [Retry] Successfully played unmapped track');
+              delete pendingAgoraTracksByUidRef.current[uidToMatch];
+              return;
+            } catch (err) {
+              console.error('❌ [Retry] Error playing unmapped track:', err);
+            }
+          }
+        }
+        
+        // Check for unmapped active tracks
+        const unmappedActiveUids = Object.keys(activeRemoteVideoTracksRef.current).filter(
+          uid => !agoraUidToSocketIdRef.current[uid] || 
+                 agoraUidToSocketIdRef.current[uid] === uid.toString()
+        );
+        
+        if (unmappedActiveUids.length > 0) {
+          const uidToMatch = unmappedActiveUids[0];
+          const activeTrack = activeRemoteVideoTracksRef.current[uidToMatch];
+          if (activeTrack) {
+            console.log('🔄 [Retry] Matching unmapped active track. UID:', uidToMatch, '-> socketId:', socketId, '- attempting to play');
+            agoraUidToSocketIdRef.current[uidToMatch] = socketId;
+            try {
+              activeTrack.play(videoElement);
+              console.log('✅ [Retry] Successfully played unmapped active track');
+              return;
+            } catch (err) {
+              console.error('❌ [Retry] Error playing unmapped active track:', err);
+            }
+          }
+        }
+      });
+    }, 2000); // Check every 2 seconds
+
     return () => {
       // Cleanup
+      clearInterval(retryInterval);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
       document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
