@@ -107,6 +107,8 @@ function Conference() {
   const localAudioTrackRef = useRef(null);
   const localVideoTrackRef = useRef(null);
   const localScreenTrackRef = useRef(null);
+  const agoraUidToSocketIdRef = useRef({}); // Map Agora UID -> Socket.IO socketId
+  const pendingAgoraTracksRef = useRef({}); // Map socketId -> { videoTrack, audioTrack } for tracks waiting for video element
 
   // Mobile detection
   useEffect(() => {
@@ -164,15 +166,60 @@ function Conference() {
       await agoraClientRef.current.subscribe(user, mediaType);
       
       if (mediaType === 'video') {
-        // In this app we use the Socket.IO id as the Agora UID
-        const socketId = user.uid.toString();
+        // Find socketId for this Agora UID
+        // First try direct mapping
+        let socketId = agoraUidToSocketIdRef.current[user.uid];
+        
+        if (!socketId) {
+          // Try to find socketId by matching with users from Socket.IO
+          // Strategy: find a user that doesn't have a video element yet, or use the most recent one
+          const usersList = users; // Get from state via closure
+          const uidStr = user.uid.toString();
+          
+          // Check if UID matches a socketId directly (string match)
+          const directMatch = usersList.find(u => u.socketId === uidStr);
+          if (directMatch) {
+            socketId = directMatch.socketId;
+            agoraUidToSocketIdRef.current[user.uid] = socketId;
+            console.log('✅ [Agora] Matched UID to socketId by direct string match:', user.uid, '->', socketId);
+          } else {
+            // Try to find a user that doesn't have a video element yet
+            const userWithoutVideo = usersList.find(u => !remoteVideosRef.current[u.socketId] || !remoteVideosRef.current[u.socketId].srcObject);
+            if (userWithoutVideo) {
+              socketId = userWithoutVideo.socketId;
+              agoraUidToSocketIdRef.current[user.uid] = socketId;
+              console.log('✅ [Agora] Matched UID to socketId by finding user without video:', user.uid, '->', socketId);
+            } else if (usersList.length > 0) {
+              // Last resort: use the first user in the list
+              socketId = usersList[0].socketId;
+              agoraUidToSocketIdRef.current[user.uid] = socketId;
+              console.log('⚠️ [Agora] Matched UID to socketId using first user (fallback):', user.uid, '->', socketId);
+            }
+          }
+        }
+        
+        // If still no socketId, try using UID as socketId (final fallback)
+        if (!socketId) {
+          socketId = user.uid.toString();
+          console.warn('⚠️ [Agora] No socketId mapping found for UID:', user.uid, 'using UID as socketId');
+        }
         
         const videoElement = remoteVideosRef.current[socketId];
         if (videoElement) {
           user.videoTrack.play(videoElement);
-          console.log('✅ [Agora] Playing remote video for:', socketId);
+          console.log('✅ [Agora] Playing remote video for:', socketId, '(Agora UID:', user.uid + ')');
+          // Clean up pending track if it exists
+          if (pendingAgoraTracksRef.current[socketId]) {
+            delete pendingAgoraTracksRef.current[socketId];
+          }
         } else {
-          console.warn('⚠️ [Agora] Video element not found for:', socketId);
+          console.warn('⚠️ [Agora] Video element not found for socketId:', socketId, '(Agora UID:', user.uid + ')');
+          // Store mapping and track for later when video element is created
+          agoraUidToSocketIdRef.current[user.uid] = socketId;
+          if (!pendingAgoraTracksRef.current[socketId]) {
+            pendingAgoraTracksRef.current[socketId] = {};
+          }
+          pendingAgoraTracksRef.current[socketId].videoTrack = user.videoTrack;
         }
       }
       
@@ -185,7 +232,7 @@ function Conference() {
     agoraClientRef.current.on('user-unpublished', (user, mediaType) => {
       console.log('👋 [Agora] User unpublished:', user.uid, 'mediaType:', mediaType);
       if (mediaType === 'video') {
-        const socketId = user.uid.toString();
+        const socketId = agoraUidToSocketIdRef.current[user.uid] || user.uid.toString();
         const videoElement = remoteVideosRef.current[socketId];
         if (videoElement) {
           // Let Agora manage the remote track lifecycle; just clear our element
@@ -196,13 +243,14 @@ function Conference() {
 
     agoraClientRef.current.on('user-left', (user) => {
       console.log('👋 [Agora] User left:', user.uid);
-      // In this app Agora UID === Socket.IO id
-      const socketId = user.uid.toString();
+      const socketId = agoraUidToSocketIdRef.current[user.uid] || user.uid.toString();
       const videoElement = remoteVideosRef.current[socketId];
       if (videoElement) {
         videoElement.srcObject = null;
         delete remoteVideosRef.current[socketId];
       }
+      // Clean up mapping
+      delete agoraUidToSocketIdRef.current[user.uid];
     });
 
     // Get user media and create Agora tracks
@@ -252,7 +300,8 @@ function Conference() {
     // Socket event handlers (for user list and chat - video handled by Agora)
     socketRef.current.on('user-joined', ({ socketId, userName }) => {
       console.log('👤 [Socket] User joined:', { socketId, userName });
-      // Agora handles video automatically, this is just for user list
+      // Try to map socketId to Agora UID when Agora publishes
+      // We'll update the mapping when we see the Agora publish event
     });
     socketRef.current.on('existing-users', (users) => {
       console.log('👥 [Socket] Existing users:', users);
@@ -801,6 +850,19 @@ function Conference() {
                     const oldStream = oldElement && oldElement.srcObject;
                     
                     remoteVideosRef.current[user.socketId] = el;
+                    
+                    // Check if there's a pending Agora track for this socketId
+                    const pendingTrack = pendingAgoraTracksRef.current[user.socketId];
+                    if (pendingTrack && pendingTrack.videoTrack) {
+                      console.log('🔄 [Agora] Video element created, playing pending Agora track for socketId:', user.socketId);
+                      try {
+                        pendingTrack.videoTrack.play(el);
+                        console.log('✅ [Agora] Successfully played pending track on new video element');
+                        delete pendingAgoraTracksRef.current[user.socketId];
+                      } catch (err) {
+                        console.error('❌ [Agora] Error playing pending track:', err);
+                      }
+                    }
                     
                     // If old element had a stream, reattach it to new element
                     if (oldStream && !el.srcObject) {
