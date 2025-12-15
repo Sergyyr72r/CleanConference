@@ -1,0 +1,38 @@
+services:
+  # Backend Service
+  - type: web
+    name: meet-backend
+    rootDir: backend
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: CLIENT_URL
+        sync: false  # Set this manually after frontend is deployed
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SMTP_HOST
+        sync: false  # Configure your email
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USER
+        sync: false  # Configure your email
+      - key: SMTP_PASS
+        sync: false  # Configure your email
+
+  # Frontend Service  
+  - type: web
+    name: meet-frontend
+    rootDir: frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: build
+    envVars:
+      - key: REACT_APP_API_URL
+        sync: false  # Set this manually with backend URL
+      - key: REACT_APP_SOCKET_URL
+        sync: false  # Set this manually with backend URL
+
+

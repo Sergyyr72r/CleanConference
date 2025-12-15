@@ -1,0 +1,12 @@
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+backend/meet.db
+.env
+.DS_Store
+*.log
+frontend/build/
+backend/.env
+
+
+
