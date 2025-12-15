@@ -107,7 +107,6 @@ function Conference() {
   const localAudioTrackRef = useRef(null);
   const localVideoTrackRef = useRef(null);
   const localScreenTrackRef = useRef(null);
-  const remoteUsersRef = useRef({}); // Map socketId -> Agora remote user
 
   // Mobile detection
   useEffect(() => {
@@ -165,10 +164,8 @@ function Conference() {
       await agoraClientRef.current.subscribe(user, mediaType);
       
       if (mediaType === 'video') {
-        // Find socketId for this Agora UID (we'll use socketId as UID)
-        const socketId = Object.keys(remoteUsersRef.current).find(
-          sid => remoteUsersRef.current[sid]?.uid === user.uid
-        ) || user.uid.toString();
+        // In this app we use the Socket.IO id as the Agora UID
+        const socketId = user.uid.toString();
         
         const videoElement = remoteVideosRef.current[socketId];
         if (videoElement) {
@@ -188,12 +185,11 @@ function Conference() {
     agoraClientRef.current.on('user-unpublished', (user, mediaType) => {
       console.log('👋 [Agora] User unpublished:', user.uid, 'mediaType:', mediaType);
       if (mediaType === 'video') {
-        const socketId = Object.keys(remoteUsersRef.current).find(
-          sid => remoteUsersRef.current[sid]?.uid === user.uid
-        ) || user.uid.toString();
+        const socketId = user.uid.toString();
         const videoElement = remoteVideosRef.current[socketId];
         if (videoElement) {
-          user.videoTrack.stop();
+          // Let Agora manage the remote track lifecycle; just clear our element
+          videoElement.srcObject = null;
         }
       }
     });
