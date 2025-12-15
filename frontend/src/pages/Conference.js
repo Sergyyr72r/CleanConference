@@ -424,13 +424,33 @@ function Conference() {
           activeUids: Object.keys(activeRemoteVideoTracksRef.current),
           mappings: Object.entries(agoraUidToSocketIdRef.current).map(([uid, sid]) => `${uid}->${sid}`)
         };
-        console.log('🔄 [Retry] Checking video element for socketId:', socketId, {
+        
+        // Log in a more readable format
+        console.log('🔄 [Retry] Checking video element for socketId:', socketId);
+        console.log('  📊 Element state:', {
           hasVideoTracks,
           isPlaying,
           hasVideo,
-          readyState: videoElement.readyState,
-          availableTracks
+          readyState: videoElement.readyState
         });
+        console.log('  📦 Available tracks:', {
+          pendingBySocketId: availableTracks.pendingBySocketId,
+          pendingByUid: availableTracks.pendingByUid,
+          activeByUid: availableTracks.activeByUid,
+          uidMappings: availableTracks.uidMappings
+        });
+        if (availableTracks.pendingSocketIds.length > 0) {
+          console.log('  🔑 Pending socketIds:', availableTracks.pendingSocketIds);
+        }
+        if (availableTracks.pendingUids.length > 0) {
+          console.log('  🔑 Pending UIDs:', availableTracks.pendingUids);
+        }
+        if (availableTracks.activeUids.length > 0) {
+          console.log('  🔑 Active UIDs:', availableTracks.activeUids);
+        }
+        if (availableTracks.mappings.length > 0) {
+          console.log('  🔗 UID mappings:', availableTracks.mappings);
+        }
         
         // Check if there's a pending track for this socketId
         const pendingTrack = pendingAgoraTracksRef.current[socketId];
