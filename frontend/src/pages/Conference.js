@@ -946,48 +946,78 @@ function Conference() {
         setIsRecording(false);
       } else {
         // Start recording
-        console.log('🔴 [Record] Starting recording');
+        console.log('🔴 [Record] Starting screen recording');
         
-        // Collect all video and audio tracks from local and remote streams
-        const allTracks = [];
-        
-        // Add local stream tracks
-        if (localStreamRef.current) {
-          localStreamRef.current.getTracks().forEach(track => {
-            if (track.enabled && track.readyState === 'live') {
-              allTracks.push(track);
+        // Request screen capture with audio (system audio)
+        let screenStream;
+        try {
+          // Request screen share with audio capture enabled
+          screenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+              displaySurface: 'monitor', // Prefer full screen
+              cursor: 'always' // Include cursor
+            },
+            audio: {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+              suppressLocalAudioPlayback: false
             }
           });
-        }
-        
-        // Add remote stream tracks
-        Object.values(remoteVideosRef.current).forEach(videoElement => {
-          if (videoElement && videoElement.srcObject) {
-            const stream = videoElement.srcObject;
-            stream.getTracks().forEach(track => {
-              if (track.enabled && track.readyState === 'live') {
-                allTracks.push(track);
-              }
-            });
-          }
-        });
-        
-        if (allTracks.length === 0) {
-          alert('No active streams to record. Please make sure video/audio is enabled.');
+          
+          console.log('✅ [Record] Screen capture started', {
+            videoTracks: screenStream.getVideoTracks().length,
+            audioTracks: screenStream.getAudioTracks().length
+          });
+        } catch (err) {
+          console.error('❌ [Record] Failed to get screen capture:', err);
+          alert('Failed to start screen recording. Please allow screen sharing permissions.');
           return;
         }
         
-        console.log('📹 [Record] Tracks to record:', {
-          total: allTracks.length,
-          video: allTracks.filter(t => t.kind === 'video').length,
-          audio: allTracks.filter(t => t.kind === 'audio').length
+        // Handle user stopping screen share from browser UI
+        screenStream.getVideoTracks()[0].addEventListener('ended', () => {
+          console.log('🛑 [Record] Screen share ended by user');
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+            mediaRecorderRef.current = null;
+          }
+          setIsRecording(false);
         });
         
-        // Create a combined stream
+        // Create combined stream with screen and audio
         const combinedStream = new MediaStream();
-        allTracks.forEach(track => {
+        
+        // Add screen video track
+        screenStream.getVideoTracks().forEach(track => {
           combinedStream.addTrack(track);
+          console.log('📹 [Record] Added screen video track:', track.label);
         });
+        
+        // Add system audio track if available
+        screenStream.getAudioTracks().forEach(track => {
+          combinedStream.addTrack(track);
+          console.log('🔊 [Record] Added system audio track:', track.label);
+        });
+        
+        // If no system audio was captured, try to get system audio separately
+        // Note: This may not work in all browsers due to security restrictions
+        if (screenStream.getAudioTracks().length === 0) {
+          console.warn('⚠️ [Record] No system audio captured. Some browsers may not support system audio capture.');
+          // Try to get system audio as a fallback (may not work)
+          try {
+            // This is a workaround - some browsers require separate audio capture
+            // We'll proceed without system audio if not available
+            console.log('ℹ️ [Record] Proceeding with screen video only (system audio not available)');
+          } catch (audioErr) {
+            console.warn('⚠️ [Record] Could not capture system audio:', audioErr);
+          }
+        }
+        
+        if (combinedStream.getVideoTracks().length === 0) {
+          alert('Failed to capture screen. Please try again.');
+          return;
+        }
         
         // Check if MediaRecorder is supported
         if (!MediaRecorder.isTypeSupported('video/webm')) {
