@@ -414,11 +414,22 @@ function Conference() {
         }
         
         // Log that we're checking this element
+        const availableTracks = {
+          pendingBySocketId: Object.keys(pendingAgoraTracksRef.current).length,
+          pendingByUid: Object.keys(pendingAgoraTracksByUidRef.current).length,
+          activeByUid: Object.keys(activeRemoteVideoTracksRef.current).length,
+          uidMappings: Object.keys(agoraUidToSocketIdRef.current).length,
+          pendingSocketIds: Object.keys(pendingAgoraTracksRef.current),
+          pendingUids: Object.keys(pendingAgoraTracksByUidRef.current),
+          activeUids: Object.keys(activeRemoteVideoTracksRef.current),
+          mappings: Object.entries(agoraUidToSocketIdRef.current).map(([uid, sid]) => `${uid}->${sid}`)
+        };
         console.log('🔄 [Retry] Checking video element for socketId:', socketId, {
           hasVideoTracks,
           isPlaying,
           hasVideo,
-          readyState: videoElement.readyState
+          readyState: videoElement.readyState,
+          availableTracks
         });
         
         // Check if there's a pending track for this socketId
@@ -510,6 +521,19 @@ function Conference() {
               console.error('❌ [Retry] Error playing unmapped active track:', err);
             }
           }
+        }
+        
+        // If we get here, no track was found - log summary (but only occasionally to avoid spam)
+        const retryCount = (videoElement.dataset.retryCount || 0) + 1;
+        videoElement.dataset.retryCount = retryCount;
+        if (retryCount % 5 === 0) { // Log every 5th retry (every 10 seconds)
+          console.warn('⚠️ [Retry] No track found after', retryCount, 'attempts for socketId:', socketId, {
+            hasPendingBySocketId: !!pendingTrack,
+            hasMappedUid: !!mappedUid,
+            unmappedPendingCount: unmappedUids.length,
+            unmappedActiveCount: unmappedActiveUids.length,
+            availableTracks
+          });
         }
       });
     }, 2000); // Check every 2 seconds
