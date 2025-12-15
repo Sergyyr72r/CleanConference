@@ -109,6 +109,7 @@ function Conference() {
   const localScreenTrackRef = useRef(null);
   const agoraUidToSocketIdRef = useRef({}); // Map Agora UID -> Socket.IO socketId
   const pendingAgoraTracksRef = useRef({}); // Map socketId -> { videoTrack, audioTrack } for tracks waiting for video element
+  const recentSocketJoinsRef = useRef([]); // Array of { socketId, userName, timestamp } for recent Socket.IO joins
 
   // Mobile detection
   useEffect(() => {
@@ -172,28 +173,49 @@ function Conference() {
         
         if (!socketId) {
           // Try to find socketId by matching with users from Socket.IO
-          // Strategy: find a user that doesn't have a video element yet, or use the most recent one
           const usersList = users; // Get from state via closure
           const uidStr = user.uid.toString();
           
-          // Check if UID matches a socketId directly (string match)
+          // Strategy 1: Check if UID matches a socketId directly (string match)
           const directMatch = usersList.find(u => u.socketId === uidStr);
           if (directMatch) {
             socketId = directMatch.socketId;
             agoraUidToSocketIdRef.current[user.uid] = socketId;
             console.log('✅ [Agora] Matched UID to socketId by direct string match:', user.uid, '->', socketId);
           } else {
-            // Try to find a user that doesn't have a video element yet
-            const userWithoutVideo = usersList.find(u => !remoteVideosRef.current[u.socketId] || !remoteVideosRef.current[u.socketId].srcObject);
-            if (userWithoutVideo) {
-              socketId = userWithoutVideo.socketId;
+            // Strategy 2: Find the most recently joined Socket.IO user that doesn't have an Agora UID mapping yet
+            // This works because Agora publishes shortly after Socket.IO user-joined
+            const recentJoins = recentSocketJoinsRef.current
+              .filter(join => {
+                // Check if this socketId doesn't have a mapping yet
+                const hasMapping = Object.values(agoraUidToSocketIdRef.current).includes(join.socketId);
+                return !hasMapping;
+              })
+              .sort((a, b) => b.timestamp - a.timestamp); // Most recent first
+            
+            if (recentJoins.length > 0) {
+              socketId = recentJoins[0].socketId;
               agoraUidToSocketIdRef.current[user.uid] = socketId;
-              console.log('✅ [Agora] Matched UID to socketId by finding user without video:', user.uid, '->', socketId);
-            } else if (usersList.length > 0) {
-              // Last resort: use the first user in the list
-              socketId = usersList[0].socketId;
-              agoraUidToSocketIdRef.current[user.uid] = socketId;
-              console.log('⚠️ [Agora] Matched UID to socketId using first user (fallback):', user.uid, '->', socketId);
+              console.log('✅ [Agora] Matched UID to socketId by most recent Socket.IO join:', user.uid, '->', socketId);
+              // Remove from recent joins since it's now mapped
+              recentSocketJoinsRef.current = recentSocketJoinsRef.current.filter(j => j.socketId !== socketId);
+            } else {
+              // Strategy 3: Find a user that doesn't have a video element yet
+              const userWithoutVideo = usersList.find(u => {
+                const hasElement = remoteVideosRef.current[u.socketId];
+                const hasMapping = Object.values(agoraUidToSocketIdRef.current).includes(u.socketId);
+                return !hasMapping; // User without an Agora mapping
+              });
+              if (userWithoutVideo) {
+                socketId = userWithoutVideo.socketId;
+                agoraUidToSocketIdRef.current[user.uid] = socketId;
+                console.log('✅ [Agora] Matched UID to socketId by finding unmapped user:', user.uid, '->', socketId);
+              } else if (usersList.length > 0) {
+                // Last resort: use the first user in the list
+                socketId = usersList[0].socketId;
+                agoraUidToSocketIdRef.current[user.uid] = socketId;
+                console.log('⚠️ [Agora] Matched UID to socketId using first user (fallback):', user.uid, '->', socketId);
+              }
             }
           }
         }
@@ -220,6 +242,12 @@ function Conference() {
             pendingAgoraTracksRef.current[socketId] = {};
           }
           pendingAgoraTracksRef.current[socketId].videoTrack = user.videoTrack;
+          // Also try to find the video element in the DOM by checking all users
+          const usersList = users;
+          const matchingUser = usersList.find(u => u.socketId === socketId);
+          if (matchingUser) {
+            console.log('🔄 [Agora] Found matching user in list, video element should be created soon');
+          }
         }
       }
       
@@ -300,8 +328,17 @@ function Conference() {
     // Socket event handlers (for user list and chat - video handled by Agora)
     socketRef.current.on('user-joined', ({ socketId, userName }) => {
       console.log('👤 [Socket] User joined:', { socketId, userName });
-      // Try to map socketId to Agora UID when Agora publishes
-      // We'll update the mapping when we see the Agora publish event
+      // Store this socketId so we can match it with the next Agora publish
+      // We'll match the first Agora publish after this user-joined to this socketId
+      const joinInfo = { socketId, userName, timestamp: Date.now() };
+      recentSocketJoinsRef.current.push(joinInfo);
+      // Keep only last 10 joins
+      if (recentSocketJoinsRef.current.length > 10) {
+        recentSocketJoinsRef.current.shift();
+      }
+      if (!pendingAgoraTracksRef.current[socketId]) {
+        pendingAgoraTracksRef.current[socketId] = { socketId, joinedAt: Date.now() };
+      }
     });
     socketRef.current.on('existing-users', (users) => {
       console.log('👥 [Socket] Existing users:', users);
