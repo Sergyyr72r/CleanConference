@@ -327,12 +327,20 @@ function Conference() {
         localAudioTrackRef.current = audioTrack;
         localVideoTrackRef.current = videoTrack;
         
-        // Create a MediaStream from Agora tracks for local video display
+        // Create a MediaStream from Agora tracks for MediaRecorder compatibility
         const stream = new MediaStream([audioTrack.getMediaStreamTrack(), videoTrack.getMediaStreamTrack()]);
         localStreamRef.current = stream;
         
+        // Use Agora's play() method for local video display (recommended way)
         if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
+          videoTrack.play(localVideoRef.current).catch(err => {
+            console.warn('⚠️ [Agora] Local video play failed, falling back to srcObject:', err);
+            // Fallback to srcObject if play() fails
+            localVideoRef.current.srcObject = stream;
+            localVideoRef.current.play().catch(playErr => {
+              console.error('❌ [Agora] Fallback play also failed:', playErr);
+            });
+          });
         }
 
         // Initialize mute state (audio starts unmuted)
@@ -757,20 +765,35 @@ function Conference() {
         // Wait a moment for the track to be ready, then update local video element
         setTimeout(() => {
           if (localVideoTrackRef.current && localVideoRef.current) {
-            // Create a new MediaStream from the re-enabled track
-            const stream = new MediaStream([localVideoTrackRef.current.getMediaStreamTrack()]);
-            if (localAudioTrackRef.current) {
-              stream.addTrack(localAudioTrackRef.current.getMediaStreamTrack());
-            }
-            localStreamRef.current = stream;
-            localVideoRef.current.srcObject = stream;
-            
-            // Try to play the video
-            localVideoRef.current.play().catch(err => {
+            // Use Agora's play() method directly (same as screen share)
+            localVideoTrackRef.current.play(localVideoRef.current).then(() => {
+              console.log('✅ [Agora] Local video playing after re-enable');
+              
+              // Also update localStreamRef for MediaRecorder compatibility
+              const stream = new MediaStream([localVideoTrackRef.current.getMediaStreamTrack()]);
+              if (localAudioTrackRef.current) {
+                stream.addTrack(localAudioTrackRef.current.getMediaStreamTrack());
+              }
+              localStreamRef.current = stream;
+            }).catch(err => {
               console.warn('⚠️ [Agora] Local video play failed after re-enable:', err);
+              // Fallback: try using srcObject
+              try {
+                const stream = new MediaStream([localVideoTrackRef.current.getMediaStreamTrack()]);
+                if (localAudioTrackRef.current) {
+                  stream.addTrack(localAudioTrackRef.current.getMediaStreamTrack());
+                }
+                localStreamRef.current = stream;
+                localVideoRef.current.srcObject = stream;
+                localVideoRef.current.play().catch(playErr => {
+                  console.error('❌ [Agora] Fallback play also failed:', playErr);
+                });
+              } catch (fallbackErr) {
+                console.error('❌ [Agora] Fallback stream creation failed:', fallbackErr);
+              }
             });
           }
-        }, 200);
+        }, 300); // Increased delay to ensure track is ready
         
         setIsVideoOff(false);
       }
@@ -1313,9 +1336,29 @@ function Conference() {
                       console.log('⚠️ [Agora] No pending track found for socketId:', user.socketId, '- will wait for Agora publish event');
                     }
                     
-                    // If old element had a stream, reattach it to new element
-                    if (oldStream && !el.srcObject) {
-                      console.log('🔄 [Render] Reattaching stream to new video element', {
+                    // If old element had a stream, try to reattach using Agora track first, then fallback to srcObject
+                    if (oldStream && !el.srcObject && !trackPlayed) {
+                      // First, try to find the Agora track for this socketId
+                      const mappedUid = Object.keys(agoraUidToSocketIdRef.current).find(
+                        uid => agoraUidToSocketIdRef.current[uid] === user.socketId
+                      );
+                      
+                      if (mappedUid) {
+                        const activeTrack = activeRemoteVideoTracksRef.current[mappedUid];
+                        if (activeTrack) {
+                          console.log('🔄 [Render] Reattaching using Agora track for socketId:', user.socketId);
+                          try {
+                            activeTrack.play(el);
+                            console.log('✅ [Render] Successfully reattached using Agora track');
+                            return; // Successfully reattached, no need for srcObject fallback
+                          } catch (err) {
+                            console.warn('⚠️ [Render] Agora track play failed, falling back to srcObject:', err);
+                          }
+                        }
+                      }
+                      
+                      // Fallback to srcObject if Agora track not available
+                      console.log('🔄 [Render] Reattaching stream to new video element (fallback)', {
                         streamId: oldStream.id,
                         hasVideoTracks: oldStream.getVideoTracks().length,
                         hasAudioTracks: oldStream.getAudioTracks().length
