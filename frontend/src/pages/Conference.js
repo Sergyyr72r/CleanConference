@@ -196,11 +196,12 @@ function Conference() {
 
     agoraClientRef.current.on('user-left', (user) => {
       console.log('👋 [Agora] User left:', user.uid);
-      const socketId = Object.keys(remoteUsersRef.current).find(
-        sid => remoteUsersRef.current[sid]?.uid === user.uid
-      );
-      if (socketId) {
-        delete remoteUsersRef.current[socketId];
+      // In this app Agora UID === Socket.IO id
+      const socketId = user.uid.toString();
+      const videoElement = remoteVideosRef.current[socketId];
+      if (videoElement) {
+        videoElement.srcObject = null;
+        delete remoteVideosRef.current[socketId];
       }
     });
 
@@ -342,9 +343,9 @@ function Conference() {
     console.log('👋 [Socket] User left:', socketId);
     // Agora handles video cleanup automatically through user-left event
     // Just clean up local references
-    delete remoteUsersRef.current[socketId];
     if (remoteVideosRef.current[socketId]) {
       remoteVideosRef.current[socketId].srcObject = null;
+      delete remoteVideosRef.current[socketId];
     }
   };
 
