@@ -109,6 +109,7 @@ function Conference() {
   const localScreenTrackRef = useRef(null);
   const agoraUidToSocketIdRef = useRef({}); // Map Agora UID -> Socket.IO socketId
   const pendingAgoraTracksRef = useRef({}); // Map socketId -> { videoTrack, audioTrack } for tracks waiting for video element
+  const pendingAgoraTracksByUidRef = useRef({}); // Map Agora UID -> { videoTrack } for tracks waiting for socketId mapping
   const recentSocketJoinsRef = useRef([]); // Array of { socketId, userName, timestamp } for recent Socket.IO joins
 
   // Mobile detection
@@ -238,18 +239,20 @@ function Conference() {
           }
         } else {
           console.warn('⚠️ [Agora] Video element not found for socketId:', socketId, '(Agora UID:', user.uid + ')');
-          // Store mapping and track for later when video element is created
-          agoraUidToSocketIdRef.current[user.uid] = socketId;
-          if (!pendingAgoraTracksRef.current[socketId]) {
-            pendingAgoraTracksRef.current[socketId] = {};
+          // Store the track by UID so we can match it later when we get the correct socketId
+          pendingAgoraTracksByUidRef.current[user.uid] = { videoTrack: user.videoTrack };
+          
+          // If we have a socketId (even if it's the UID as fallback), store the mapping
+          if (socketId) {
+            agoraUidToSocketIdRef.current[user.uid] = socketId;
+            // Also store in pendingAgoraTracksRef in case the socketId is correct
+            if (!pendingAgoraTracksRef.current[socketId]) {
+              pendingAgoraTracksRef.current[socketId] = {};
+            }
+            pendingAgoraTracksRef.current[socketId].videoTrack = user.videoTrack;
           }
-          pendingAgoraTracksRef.current[socketId].videoTrack = user.videoTrack;
-          // Also try to find the video element in the DOM by checking all users
-          const usersList = users;
-          const matchingUser = usersList.find(u => u.socketId === socketId);
-          if (matchingUser) {
-            console.log('🔄 [Agora] Found matching user in list, video element should be created soon');
-          }
+          
+          console.log('💾 [Agora] Stored track by UID for later matching. UID:', user.uid, 'socketId:', socketId);
         }
       }
       
@@ -927,13 +930,52 @@ function Conference() {
                       }
                     }
                     
+                    // Check if there's an unmapped Agora track that should be matched to this socketId
+                    // This handles the race condition where Agora publishes before we have the socketId
+                    const unmappedUids = Object.keys(pendingAgoraTracksByUidRef.current).filter(
+                      uid => !agoraUidToSocketIdRef.current[uid] || 
+                             agoraUidToSocketIdRef.current[uid] === uid.toString() // UID was used as fallback socketId
+                    );
+                    
+                    if (unmappedUids.length > 0) {
+                      // Match the first unmapped track to this socketId
+                      const uidToMatch = unmappedUids[0];
+                      const unmappedTrack = pendingAgoraTracksByUidRef.current[uidToMatch];
+                      
+                      if (unmappedTrack && unmappedTrack.videoTrack) {
+                        console.log('🔄 [Agora] Video element created, matching unmapped Agora track. UID:', uidToMatch, '-> socketId:', user.socketId);
+                        agoraUidToSocketIdRef.current[uidToMatch] = user.socketId;
+                        try {
+                          unmappedTrack.videoTrack.play(el);
+                          console.log('✅ [Agora] Successfully played unmapped track on new video element');
+                          delete pendingAgoraTracksByUidRef.current[uidToMatch];
+                          // Also clean up from pendingAgoraTracksRef if it exists there
+                          if (pendingAgoraTracksRef.current[uidToMatch]) {
+                            delete pendingAgoraTracksRef.current[uidToMatch];
+                          }
+                        } catch (err) {
+                          console.error('❌ [Agora] Error playing unmapped track:', err);
+                        }
+                      }
+                    }
+                    
                     // Also check if there's an Agora UID mapped to this socketId that needs to play
                     const mappedUid = Object.keys(agoraUidToSocketIdRef.current).find(
                       uid => agoraUidToSocketIdRef.current[uid] === user.socketId
                     );
-                    if (mappedUid) {
-                      console.log('🔄 [Agora] Video element created for mapped UID:', mappedUid, 'socketId:', user.socketId);
-                      // The track should be stored in pendingAgoraTracksRef, but if not, we'll wait for user-published
+                    if (mappedUid && mappedUid !== user.socketId) {
+                      // Check if we have a track stored by this UID
+                      const trackByUid = pendingAgoraTracksByUidRef.current[mappedUid];
+                      if (trackByUid && trackByUid.videoTrack) {
+                        console.log('🔄 [Agora] Video element created for mapped UID, playing stored track. UID:', mappedUid, 'socketId:', user.socketId);
+                        try {
+                          trackByUid.videoTrack.play(el);
+                          console.log('✅ [Agora] Successfully played track from UID mapping');
+                          delete pendingAgoraTracksByUidRef.current[mappedUid];
+                        } catch (err) {
+                          console.error('❌ [Agora] Error playing track from UID mapping:', err);
+                        }
+                      }
                     }
                     
                     // If old element had a stream, reattach it to new element
