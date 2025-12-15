@@ -398,9 +398,28 @@ function Conference() {
       // Check all video elements in remoteVideosRef
       Object.keys(remoteVideosRef.current).forEach(socketId => {
         const videoElement = remoteVideosRef.current[socketId];
-        if (!videoElement || videoElement.srcObject) {
-          return; // Element doesn't exist or already has a stream
+        if (!videoElement) {
+          return; // Element doesn't exist
         }
+        
+        // Check if element already has a video track playing
+        // Agora tracks use play() directly, so we check if video is actually playing
+        const hasVideoTracks = videoElement.srcObject && videoElement.srcObject.getVideoTracks().length > 0;
+        const isPlaying = !videoElement.paused && videoElement.readyState >= 2; // HAVE_CURRENT_DATA or higher
+        const hasVideo = videoElement.videoWidth > 0 && videoElement.videoHeight > 0; // Video has dimensions
+        
+        // Skip if element already has video playing
+        if (hasVideoTracks || (isPlaying && hasVideo)) {
+          return; // Element already has a stream or is playing
+        }
+        
+        // Log that we're checking this element
+        console.log('🔄 [Retry] Checking video element for socketId:', socketId, {
+          hasVideoTracks,
+          isPlaying,
+          hasVideo,
+          readyState: videoElement.readyState
+        });
         
         // Check if there's a pending track for this socketId
         const pendingTrack = pendingAgoraTracksRef.current[socketId];
