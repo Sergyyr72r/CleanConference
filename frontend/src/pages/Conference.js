@@ -103,6 +103,8 @@ function Conference() {
   const screenShareStreamRef = useRef(null);
   const currentSocketIdRef = useRef(null);
   const mediaRecorderRef = useRef(null);
+  const recordingStreamRef = useRef(null); // Store recording stream to stop tracks when done
+  const recordingScreenStreamRef = useRef(null); // Store screen stream to access mic stream if needed
   const agoraClientRef = useRef(null); // Agora RTC client
   const localAudioTrackRef = useRef(null);
   const localVideoTrackRef = useRef(null);
@@ -111,6 +113,7 @@ function Conference() {
   const pendingAgoraTracksRef = useRef({}); // Map socketId -> { videoTrack, audioTrack } for tracks waiting for video element
   const pendingAgoraTracksByUidRef = useRef({}); // Map Agora UID -> { videoTrack } for tracks waiting for socketId mapping
   const activeRemoteVideoTracksRef = useRef({}); // Map Agora UID -> videoTrack for all active remote video tracks
+  const activeRemoteAudioTracksRef = useRef({}); // Map Agora UID -> audioTrack for all active remote audio tracks
   const recentSocketJoinsRef = useRef([]); // Array of { socketId, userName, timestamp } for recent Socket.IO joins
 
   // Mobile detection
@@ -286,6 +289,8 @@ function Conference() {
       }
       
       if (mediaType === 'audio') {
+        // Store the remote audio track for recording
+        activeRemoteAudioTracksRef.current[user.uid] = user.audioTrack;
         user.audioTrack.play();
         console.log('🔊 [Agora] Playing remote audio for:', user.uid);
       }
@@ -303,6 +308,9 @@ function Conference() {
         // Clean up active track (but keep mapping in case they republish)
         delete activeRemoteVideoTracksRef.current[user.uid];
         delete pendingAgoraTracksByUidRef.current[user.uid];
+      } else if (mediaType === 'audio') {
+        // Clean up remote audio track
+        delete activeRemoteAudioTracksRef.current[user.uid];
       }
     });
 
@@ -317,6 +325,7 @@ function Conference() {
       // Clean up all mappings and stored tracks
       delete agoraUidToSocketIdRef.current[user.uid];
       delete activeRemoteVideoTracksRef.current[user.uid];
+      delete activeRemoteAudioTracksRef.current[user.uid];
       delete pendingAgoraTracksRef.current[socketId];
       delete pendingAgoraTracksByUidRef.current[user.uid];
     });
@@ -943,6 +952,25 @@ function Conference() {
           mediaRecorderRef.current = null;
         }
         
+        // Stop all recording tracks (screen and microphone)
+        if (recordingStreamRef.current) {
+          recordingStreamRef.current.getTracks().forEach(track => {
+            track.stop();
+            console.log('🛑 [Record] Stopped track:', track.kind, track.label);
+          });
+          recordingStreamRef.current = null;
+        }
+        
+        // Also stop microphone stream if it was stored separately
+        if (recordingScreenStreamRef.current?._micStream) {
+          recordingScreenStreamRef.current._micStream.getTracks().forEach(track => {
+            track.stop();
+            console.log('🛑 [Record] Stopped microphone track:', track.label);
+          });
+          recordingScreenStreamRef.current._micStream = null;
+        }
+        recordingScreenStreamRef.current = null;
+        
         setIsRecording(false);
       } else {
         // Start recording
@@ -982,6 +1010,22 @@ function Conference() {
             mediaRecorderRef.current.stop();
             mediaRecorderRef.current = null;
           }
+          
+          // Stop microphone stream if it was added
+          if (recordingScreenStreamRef.current?._micStream) {
+            recordingScreenStreamRef.current._micStream.getTracks().forEach(track => {
+              track.stop();
+              console.log('🛑 [Record] Stopped microphone track:', track.label);
+            });
+          }
+          
+          // Stop all tracks in combined stream
+          if (recordingStreamRef.current) {
+            recordingStreamRef.current.getTracks().forEach(track => track.stop());
+            recordingStreamRef.current = null;
+          }
+          recordingScreenStreamRef.current = null;
+          
           setIsRecording(false);
         });
         
@@ -994,30 +1038,104 @@ function Conference() {
           console.log('📹 [Record] Added screen video track:', track.label);
         });
         
-        // Add system audio track if available
+        // Add system audio track if available (from screen share)
+        let hasSystemAudio = false;
         screenStream.getAudioTracks().forEach(track => {
           combinedStream.addTrack(track);
+          hasSystemAudio = true;
           console.log('🔊 [Record] Added system audio track:', track.label);
         });
         
-        // If no system audio was captured, try to get system audio separately
-        // Note: This may not work in all browsers due to security restrictions
-        if (screenStream.getAudioTracks().length === 0) {
-          console.warn('⚠️ [Record] No system audio captured. Some browsers may not support system audio capture.');
-          // Try to get system audio as a fallback (may not work)
+        // If no system audio was captured, add microphone audio as fallback
+        // This ensures we always have audio in the recording
+        if (!hasSystemAudio) {
+          console.warn('⚠️ [Record] No system audio captured. Adding microphone audio as fallback.');
           try {
-            // This is a workaround - some browsers require separate audio capture
-            // We'll proceed without system audio if not available
-            console.log('ℹ️ [Record] Proceeding with screen video only (system audio not available)');
+            // Get microphone audio
+            const micStream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+              }
+            });
+            
+            // Add microphone audio tracks
+            micStream.getAudioTracks().forEach(track => {
+              combinedStream.addTrack(track);
+              console.log('🎤 [Record] Added microphone audio track:', track.label);
+            });
+            
+            // Store mic stream reference to stop it later
+            screenStream._micStream = micStream;
           } catch (audioErr) {
-            console.warn('⚠️ [Record] Could not capture system audio:', audioErr);
+            console.warn('⚠️ [Record] Could not capture microphone audio:', audioErr);
+            alert('Note: No audio will be recorded. Please allow microphone access for audio recording.');
           }
+        } else {
+          // System audio is available, but we can also add microphone for better audio quality
+          // (optional - comment out if you only want system audio)
+          try {
+            const micStream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+              }
+            });
+            micStream.getAudioTracks().forEach(track => {
+              combinedStream.addTrack(track);
+              console.log('🎤 [Record] Added microphone audio (in addition to system audio):', track.label);
+            });
+            screenStream._micStream = micStream;
+          } catch (micErr) {
+            console.log('ℹ️ [Record] Microphone not available, using system audio only');
+          }
+        }
+        
+        // Add remote user audio tracks (from conference participants)
+        const remoteAudioTracks = Object.values(activeRemoteAudioTracksRef.current);
+        if (remoteAudioTracks.length > 0) {
+          console.log('👥 [Record] Adding', remoteAudioTracks.length, 'remote user audio track(s)');
+          remoteAudioTracks.forEach((audioTrack, index) => {
+            try {
+              // Get the MediaStreamTrack from the Agora audio track
+              const mediaStreamTrack = audioTrack.getMediaStreamTrack();
+              if (mediaStreamTrack && mediaStreamTrack.readyState === 'live') {
+                combinedStream.addTrack(mediaStreamTrack);
+                console.log('👤 [Record] Added remote user audio track:', mediaStreamTrack.label || `Remote user ${index + 1}`);
+              } else {
+                console.warn('⚠️ [Record] Remote audio track not live, skipping:', index);
+              }
+            } catch (err) {
+              console.error('❌ [Record] Error adding remote audio track:', err);
+            }
+          });
+        } else {
+          console.log('ℹ️ [Record] No remote users with audio to record');
         }
         
         if (combinedStream.getVideoTracks().length === 0) {
           alert('Failed to capture screen. Please try again.');
           return;
         }
+        
+        // Store the streams so we can stop all tracks when recording ends
+        recordingStreamRef.current = combinedStream;
+        recordingScreenStreamRef.current = screenStream;
+        
+        // Log what we're recording
+        const audioTracks = combinedStream.getAudioTracks();
+        console.log('📹 [Record] Recording tracks:', {
+          video: combinedStream.getVideoTracks().length,
+          audio: audioTracks.length,
+          audioSources: {
+            system: screenStream.getAudioTracks().length > 0 ? 'Yes' : 'No',
+            microphone: screenStream._micStream ? 'Yes' : 'No',
+            remoteUsers: remoteAudioTracks.length
+          },
+          audioLabels: audioTracks.map(t => t.label)
+        });
         
         // Check if MediaRecorder is supported
         if (!MediaRecorder.isTypeSupported('video/webm')) {
